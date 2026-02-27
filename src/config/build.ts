@@ -37,14 +37,14 @@
  */
 
 // ── Current app version (must match android/app/build.gradle versionName) ────
-export const APP_VERSION = '1.0.1';
+export const APP_VERSION = '1.0.3';
 
 // ── GitHub Releases API endpoint used for update checks ──────────────────────
 // To use a self-hosted endpoint, the response must be GH-compatible JSON with
 // at least: { "tag_name": "v1.2.3", "assets": [...], "html_url": "..." }
 export const RELEASES_API_URL =
   process.env['FIELDGUARD_RELEASES_URL'] ??
-  'https://api.github.com/repos/LBSINTER/LBS-FieldGuard/releases/latest';
+  'https://api.github.com/repos/LBSINTER/LBS-FieldGuardPublic/releases/latest';
 
 // ── Probe configuration ───────────────────────────────────────────────────────
 export const PROBE_HOST = '140.82.39.182';
@@ -52,4 +52,4 @@ export const PROBE_PORT = 5556;
 
 // ── Misc ──────────────────────────────────────────────────────────────────────
 export const APP_NAME         = 'LBS FieldGuard';
-export const GITHUB_REPO_URL  = 'https://github.com/LBSINTER/LBS-FieldGuard';
+export const GITHUB_REPO_URL  = 'https://github.com/LBSINTER/LBS-FieldGuardPublic';

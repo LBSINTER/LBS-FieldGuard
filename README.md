@@ -1,133 +1,302 @@
 # LBS FieldGuard
 
-Multi-platform mobile forensics and SS7 threat detection tool.
+Field tool for Android and Windows that monitors the radio layer, network traffic,
+and filesystem for SS7-based attacks, SIM OTA commands, Pegasus/NSO implant
+indicators, and silent SMS tracking.
 
-Platforms: **Android APK** + **Windows** (react-native-windows)
+Releases (APK and Windows binaries): https://github.com/LBSINTER/LBS-FieldGuardPublic/releases
+
 
 ---
+
+
+## Contents
+
+- [What it does](#what-it-does)
+- [Platforms and requirements](#platforms-and-requirements)
+- [Installation](#installation)
+- [Screens](#screens)
+- [Architecture](#architecture)
+- [Project layout](#project-layout)
+- [Building from source](#building-from-source)
+- [Native modules](#native-modules)
+- [Signature database](#signature-database)
+- [SS7 payload catalogue](#ss7-payload-catalogue)
+- [Station probe protocol](#station-probe-protocol)
+- [Auto-update system](#auto-update-system)
+- [Running tests](#running-tests)
+- [Releasing a new version](#releasing-a-new-version)
+
+
+---
+
 
 ## What it does
 
-LBS FieldGuard runs on an Android device or Windows workstation and provides:
+LBS FieldGuard runs on an Android device or a Windows workstation and provides six
+main functions:
 
-- **Byte-pattern scanner** — scans the device filesystem for known malware, SS7 RAT payloads, Pegasus/NSO Group signatures
-- **RIL monitor** — intercepts inbound SMS PDUs at the Android RIL layer, classifying Type-0 silent SMS, SIM OTA commands (IEI 0x70/0x71), STK ProactiveCommand (PID=0x7F), binary SMS, and Class-0 flash SMS
-- **Packet analyser** — Android VPN TUN or Windows Npcap/WinPcap capture; detects NSO/Pegasus C2 IP contacts, SS7-over-IP (SIGTRAN ports), rogue GTP tunnels, ICMP redirects
-- **PDU Builder** — construct SMS-SUBMIT PDUs from templates (Type-0, STK, OTA, binary, WAP Push, custom) for testing and verification
-- **SS7 payload catalogue** — pre-loaded database of 15+ known attack types with PID/DCS/UDH classification and mitigation references
-- **Station probe** — persistent TCP connection to main LBS station (140.82.39.182:5556) for signature updates and remote alert relay
+**Byte-pattern scanner**
+Scans the device filesystem for files matching known attack signatures. The database
+covers SS7 RAT payloads, Pegasus/NSO Group stage-1 indicators, SIM OTA scripts,
+and generic malware byte patterns.
+
+**RIL monitor**
+Hooks into the Android radio layer via a BroadcastReceiver registered at maximum
+priority. Intercepts inbound SMS PDUs before they reach other apps and classifies
+them: Type-0 silent SMS, SIM OTA commands (IEI 0x70/0x71), STK ProactiveCommand
+(PID 0x7F), binary SMS, and Class-0 flash SMS. Generates an alert for any PDU that
+matches a known attack pattern.
+
+**Packet analyser**
+Captures network traffic using the Android VPN TUN interface on mobile or
+WinPcap/Npcap on Windows. Flags outbound connections to known NSO/Pegasus C2
+addresses, traffic on SIGTRAN ports (M3UA, SUA, SCCP, TCAP), rogue GTP tunnel
+creation, and ICMP redirects.
+
+**PDU builder**
+Constructs SMS-SUBMIT PDUs from templates for testing and verification. Supported
+templates: Type-0 silent, STK ProactiveCommand, SIM OTA, binary, WAP Push, and
+fully custom. Output is shown as a hex dump alongside a decoded field breakdown.
+
+**SS7 payload catalogue**
+Static database of 15+ known attack types with PID, DCS, and UDH classification,
+plain-language descriptions, and mitigation references. Available from the Alerts
+screen for quick lookup during an incident.
+
+**Station probe**
+Persistent TCP connection to the LBS station at 140.82.39.182:5556. Used to pull
+signature database updates, push device alerts to the operations centre, and relay
+telemetry in real time.
+
 
 ---
+
+
+## Platforms and requirements
+
+| Component         | Android              | Windows                  |
+|-------------------|----------------------|--------------------------|
+| OS version        | Android 8.0 (API 26) | Windows 10 1903 or later |
+| Architecture      | arm64-v8a, x86_64    | x64                      |
+| Extra dependency  | none                 | Npcap (npcap.com)        |
+| Node.js (build)   | 18 or later          | 18 or later              |
+| Java (build)      | 17                   | not required             |
+| Visual Studio     | not required         | 2022 with UWP workload   |
+
+
+---
+
+
+## Installation
+
+### Android
+
+1. Download `LBS-FieldGuard-vX.Y.Z.apk` from the
+   [releases page](https://github.com/LBSINTER/LBS-FieldGuardPublic/releases/latest).
+2. On the device, open Settings and find "Install unknown apps" (the exact path
+   varies by manufacturer — it may be under Apps, Privacy, or Biometrics & Security).
+   Allow the file manager or browser you will use to open the APK.
+3. Transfer the APK to the device and tap the file to install.
+
+Via ADB:
+
+```
+adb install LBS-FieldGuard-vX.Y.Z.apk
+```
+
+Required permissions (requested at first run):
+
+| Permission                    | Purpose                              |
+|-------------------------------|--------------------------------------|
+| `RECEIVE_SMS` / `READ_SMS`    | RIL monitor SMS intercept            |
+| `READ_PHONE_STATE`            | IMSI and cell tower information      |
+| `BIND_VPN_SERVICE`            | Packet capture via TUN interface     |
+| `MANAGE_EXTERNAL_STORAGE`     | File scanner access                  |
+
+The app does not require a network connection to function. The station probe and
+auto-update check are both optional features and can be left inactive.
+
+### Windows
+
+1. Download `LBS-FieldGuard-vX.Y.Z-windows.zip` from the
+   [releases page](https://github.com/LBSINTER/LBS-FieldGuardPublic/releases/latest).
+2. Install [Npcap](https://npcap.com) if packet capture is needed.
+3. Extract the zip and run `LBSFieldGuard.exe`.
+
+The Windows build uses react-native-windows and renders the same interface as the
+Android version. Npcap is only required if you want the packet analyser to work;
+all other screens function without it.
+
+
+---
+
+
+## Screens
+
+**Dashboard**
+Top-level status view. Shows the probe connection state, signature database
+version, active alerts count, and the platform (Android or Windows). On Android,
+also shows RIL monitor status.
+
+**Scanner**
+Run an on-demand scan or schedule recurring scans. Results list matched files with
+the signature name, category, severity, and matched byte offset.
+
+**PDU Builder**
+Select a template, fill in the fields, and build a PDU. The output shows the
+assembled hex string and a side-by-side field breakdown. Useful for constructing
+test vectors when verifying RIL monitor classification.
+
+**Alerts**
+Chronological list of all alerts generated since the session started. Each alert
+includes the source (RIL, scanner, or packet analyser), severity, timestamp, and
+a short description. Tapping an alert opens the relevant SS7 catalogue entry if
+one exists.
+
+**Probe**
+Manual control for the station connection. Shows latency (PING/PONG), last
+signature update time, and a log of raw probe messages. Allows manually requesting
+a DB update.
+
+**Settings**
+Configure the station address and port, set scan schedule and target directories,
+toggle RIL monitoring and packet capture, and view the current app version.
+
+
+---
+
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│  LBS FieldGuard (React Native)                       │
-│                                                      │
-│  ┌──────────┐  ┌──────────┐  ┌────────────────────┐ │
-│  │ Scanner  │  │  RIL     │  │  Network Analyser  │ │
-│  │ (TS)     │  │  Monitor │  │  (TS + NativeModule│ │
-│  └──────────┘  │  (TS +   │  │   PCAPBridge.cs /  │ │
-│                │  Java    │  │   rn-tcp-socket)   │ │
-│                │  RIL     │  └────────────────────┘ │
-│                │  Bridge) │                          │
-│                └──────────┘                          │
-│  ┌──────────────────────────────────────────────────┐│
-│  │  Signature DB  │  SS7 Payload Catalogue          ││
-│  │  (JSON asset)  │  (PayloadCatalogue.ts)          ││
-│  └──────────────────────────────────────────────────┘│
-│  ┌──────────────────────────────────────────────────┐│
-│  │  Probe Client (TCP → 140.82.39.182:5556)         ││
-│  │  Signature updates · Remote alerts · Telemetry   ││
-│  └──────────────────────────────────────────────────┘│
-│  ┌──────────────────────────────────────────────────┐│
-│  │  Zustand Store  │  React Navigation              ││
-│  │  Dashboard · Scanner · PDU Builder · Alerts      ││
-│  │  Probe · Settings                                ││
-│  └──────────────────────────────────────────────────┘│
-└──────────────────────────────────────────────────────┘
+LBS FieldGuard (React Native 0.73)
++--------------------------------------------------+
+|  Scanner         RIL Monitor      Packet         |
+|  (TypeScript)    (TypeScript +    Analyser        |
+|                  Java RIL Bridge) (TypeScript +   |
+|                                   PCAPBridge.cs   |
+|                                   on Windows)     |
+|                                                   |
+|  Signature DB    SS7 Catalogue    Probe Client    |
+|  (JSON asset)    (TypeScript)     (TCP socket)    |
+|                                                   |
+|  Zustand store   React Navigation                 |
+|  Dashboard  Scanner  PDU Builder  Alerts          |
+|  Probe  Settings                                  |
++--------------------------------------------------+
+          |                         |
+          | TCP 5556                | GitHub Releases API
+          v                         v
+   LBS Station              LBS-FieldGuardPublic
+   (140.82.39.182)          (version check + APK
+   sig updates,              download)
+   alert relay
 ```
+
 
 ---
 
-## Project Layout
+
+## Project layout
 
 ```
 LBS-FieldGuard/
-├── src/
-│   ├── App.tsx                    — root component
-│   ├── scanner/
-│   │   ├── SignatureDB.ts         — byte-pattern loader and matcher
-│   │   └── FileScanner.ts         — chunked file scanner
-│   ├── android/
-│   │   ├── PDUCodec.ts            — full SMS PDU encode/decode
-│   │   └── RILMonitor.ts          — RIL event monitor + classifier
-│   ├── network/
-│   │   └── PacketAnalyser.ts      — packet capture + NSO/SS7 detection
-│   ├── probe/
-│   │   └── ProbeClient.ts         — TCP probe to LBS station
-│   ├── ss7/
-│   │   └── PayloadCatalogue.ts    — SS7 RAT payload database (15+ entries)
-│   ├── store/
-│   │   └── appStore.ts            — Zustand global state
-│   ├── types/
-│   │   └── index.ts               — all shared TypeScript types
-│   ├── ui/
-│   │   ├── RootNavigator.tsx
-│   │   ├── components/Icon.tsx
-│   │   └── screens/
-│   │       ├── DashboardScreen.tsx
-│   │       ├── ScannerScreen.tsx
-│   │       ├── PDUBuilderScreen.tsx
-│   │       ├── AlertsScreen.tsx
-│   │       ├── ProbeScreen.tsx
-│   │       └── SettingsScreen.tsx
-│   └── utils/
-│       ├── crypto.ts
-│       └── id.ts
-├── android/
-│   ├── app/src/main/
-│   │   ├── AndroidManifest.xml
-│   │   └── java/com/lbs/fieldguard/ril/
-│   │       ├── RILBridgeModule.java   — SMS BroadcastReceiver NativeModule
-│   │       └── RILBridgePackage.java
-├── windows/
-│   ├── LBSFieldGuard/
-│   │   └── PCAPBridgeModule.cs        — WinPcap/Npcap NativeModule (C#)
-│   └── LBSFieldGuard.Package/
-│       └── LBSFieldGuardPackage.cs
-├── assets/
-│   └── signatures/db.json             — bundled byte-pattern signature DB
-├── __tests__/
-│   ├── PDUCodec.test.ts
-│   ├── SignatureDB.test.ts
-│   └── PayloadCatalogue.test.ts
-├── package.json
-├── tsconfig.json
-├── babel.config.js
-└── metro.config.js
+  src/
+    App.tsx                       root component, UpdateBanner mount
+    config/
+      build.ts                    APP_VERSION, RELEASES_API_URL, probe config
+    scanner/
+      SignatureDB.ts              byte-pattern loader and matcher
+      FileScanner.ts              chunked filesystem scanner
+    android/
+      PDUCodec.ts                 SMS PDU encode/decode (GSM-7, binary, UCS-2)
+      RILMonitor.ts               RIL event monitor and SMS PDU classifier
+    network/
+      PacketAnalyser.ts           packet capture handler and NSO/SS7 detector
+    probe/
+      ProbeClient.ts              TCP probe client (station protocol)
+    ss7/
+      PayloadCatalogue.ts         SS7 attack type database (15+ entries)
+    store/
+      appStore.ts                 Zustand global state
+    types/
+      index.ts                    shared TypeScript types
+    utils/
+      UpdateChecker.ts            GitHub releases API version check
+      crypto.ts
+      id.ts
+    ui/
+      RootNavigator.tsx
+      components/
+        Icon.tsx
+        UpdateBanner.tsx          dismissible update notification banner
+      hooks/
+        useScreenSize.ts          responsive sizing hook
+      screens/
+        DashboardScreen.tsx
+        ScannerScreen.tsx
+        PDUBuilderScreen.tsx
+        AlertsScreen.tsx
+        ProbeScreen.tsx
+        SettingsScreen.tsx
+  android/
+    app/src/main/
+      AndroidManifest.xml
+      java/com/lbs/fieldguard/ril/
+        RILBridgeModule.java      SMS BroadcastReceiver NativeModule
+        RILBridgePackage.java
+      res/mipmap-*/
+        ic_launcher.png           LBS site icon, all density variants
+        ic_launcher_round.png
+  windows/
+    LBSFieldGuard/
+      PCAPBridgeModule.cs         WinPcap/Npcap NativeModule (C#)
+    LBSFieldGuard.Package/
+      LBSFieldGuardPackage.cs
+  assets/
+    signatures/
+      db.json                     bundled byte-pattern signature database
+  __tests__/
+    PDUCodec.test.ts
+    SignatureDB.test.ts
+    PayloadCatalogue.test.ts
+  .github/
+    workflows/
+      build-apk.yml               release APK build + publish to FieldGuardPublic
+      ci.yml                      PR / push checks (tests + Gradle debug build)
 ```
+
 
 ---
 
-## Build
+
+## Building from source
 
 ### Android APK
 
 ```bash
-# Install dependencies
+# Install JS dependencies
 npm install
 
-# Debug build (device/emulator)
+# Debug build — runs on a connected device or emulator
 npx react-native run-android
 
 # Release APK
-cd android && ./gradlew assembleRelease
+cd android
+./gradlew assembleRelease
 # Output: android/app/build/outputs/apk/release/app-release.apk
 ```
 
-**Prerequisites:** Android Studio, NDK r25+, Java 17+
+For a signed release build, set these four properties in
+`android/gradle.properties` or as environment variables:
+
+```
+FIELDGUARD_UPLOAD_STORE_FILE=path/to/your.keystore
+FIELDGUARD_UPLOAD_KEY_ALIAS=your-alias
+FIELDGUARD_UPLOAD_STORE_PASSWORD=...
+FIELDGUARD_UPLOAD_KEY_PASSWORD=...
+```
 
 ### Windows
 
@@ -136,184 +305,227 @@ npm install
 npx react-native run-windows
 ```
 
-**Prerequisites:** Visual Studio 2022 with UWP workload, Npcap (https://npcap.com) installed.
+Install [Npcap](https://npcap.com) on the build machine before running if you
+want the packet capture features to be functional during development.
+
+### GitHub Actions (automated)
+
+Pushing a tag of the form `vX.Y.Z` triggers `.github/workflows/build-apk.yml`:
+
+1. Checks out the repo, installs Node 20 and Java 17.
+2. Runs `npm ci` and bundles JS with Metro.
+3. Builds a signed release APK (or a debug-keyed APK if no keystore secret is set).
+4. Creates a GitHub Release on `LBSINTER/LBS-FieldGuardPublic` and attaches the APK.
+5. Archives the same APK to a release on the private repo.
+
+Required repository secrets for signed builds and public publishing:
+
+| Secret                        | Description                                             |
+|-------------------------------|---------------------------------------------------------|
+| `FIELDGUARD_KEYSTORE_BASE64`  | Base-64 encoded `.jks` keystore file                   |
+| `FIELDGUARD_KEY_ALIAS`        | Key alias inside the keystore                          |
+| `FIELDGUARD_STORE_PASSWORD`   | Keystore password                                      |
+| `FIELDGUARD_KEY_PASSWORD`     | Key password                                           |
+| `FIELDGUARD_PUBLIC_PAT`       | GitHub PAT with `repo` scope on LBS-FieldGuardPublic  |
+
+If `FIELDGUARD_KEYSTORE_BASE64` is absent, a fresh debug keystore is generated at
+build time (the APK is still installable but carries no release certificate).
+
 
 ---
 
-## Native Modules
+
+## Native modules
 
 ### Android — RILBridgeModule (Java)
 
-- Registers a `BroadcastReceiver` for `SMS_RECEIVED` and `SMS_CB_RECEIVED`
-- Priority: `Integer.MAX_VALUE` to intercept before other apps
-- Emits `onRILMessage` events to JS with full PDU hex
-- Required permissions: `RECEIVE_SMS`, `READ_PHONE_STATE`
+Location: `android/app/src/main/java/com/lbs/fieldguard/ril/`
+
+- Registers a `BroadcastReceiver` for `android.provider.Telephony.SMS_RECEIVED`
+  and `android.provider.Telephony.SMS_CB_RECEIVED`.
+- Receiver priority: `Integer.MAX_VALUE` — intercepts PDUs before any other app.
+- Emits `onRILMessage` events to JS with the full PDU as a hex string.
+- Required manifest permissions: `RECEIVE_SMS`, `READ_PHONE_STATE`.
 
 Register in `MainApplication.java`:
+
 ```java
 packages.add(new RILBridgePackage());
 ```
 
 ### Windows — PCAPBridgeModule (C#)
 
-- Uses SharpPcap + PacketDotNet NuGet packages
-- Opens promiscuous capture on first available Npcap adapter
-- Emits `onPacket` events with `{ srcIp, dstIp, proto, srcPort, dstPort, payloadHex }`
-- Requires Npcap installed on target machine
+Location: `windows/LBSFieldGuard/PCAPBridgeModule.cs`
+
+- Uses SharpPcap and PacketDotNet (NuGet).
+- Opens the first available Npcap adapter in promiscuous mode.
+- Emits `onPacket` events with: `{ srcIp, dstIp, proto, srcPort, dstPort, payloadHex }`.
+- Requires Npcap to be installed on the target machine for capture to start.
 
 Register in `App.cpp`:
+
 ```cpp
 PackageProviders().Append(winrt::make<LBSFieldGuardPackage>());
 ```
 
----
-
-## Signature DB
-
-`assets/signatures/db.json` — compiled into the app bundle.
-
-Signature fields:
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique identifier |
-| `name` | string | Human-readable name |
-| `category` | string | `stk` / `sim_ota` / `pegasus` / `ss7_map` / `ss7` / `gtp` / `malware` |
-| `severity` | string | `info` / `low` / `medium` / `high` / `critical` |
-| `pattern` | string | Hex bytes space-separated |
-| `mask` | string | Optional byte mask (FF=must match, 00=wildcard) |
-| `description` | string | Attack description |
-
-Update signatures via station probe (MSG_SIG_UPDATE) or replace `db.json` and rebuild.
 
 ---
 
-## SS7 Payload Catalogue
 
-`src/ss7/PayloadCatalogue.ts` — 15+ entries covering:
+## Signature database
 
-| ID | Layer | Attack |
-|----|-------|--------|
-| SILENT_TYPE0 | SMS-PP | Type-0 silent SMS (PID=0x40) |
-| FLASH_CLASS0 | SMS-PP | Class-0 flash SMS (social engineering) |
-| SIM_OTA_UDH70 | SIM-OTA | SIM OTA command (IEI=0x70) |
-| SIM_OTA_UDH71 | SIM-OTA | SIM OTA response (IEI=0x71) |
-| STK_PROACTIVE_7F | STK | STK ProactiveCommand (PID=0x7F) |
-| STK_SEND_SMS | STK | SEND SHORT MESSAGE (exfiltration) |
-| STK_LAUNCH_BROWSER | STK | LAUNCH BROWSER (drive-by exploit) |
-| USSD_PUSH_HIJACK | USSD | MAP USSD push (credential theft) |
-| MAP_SRILSM | SS7-MAP | SRI-SM (IMSI harvesting) |
-| MAP_ATI | SS7-MAP | AnyTimeInterrogation (real-time location) |
-| MAP_ISD | SS7-MAP | InsertSubscriberData (call forwarding inject) |
-| GTP_HIJACK | GTP | GTPv1 session spoofing |
-| NSO_PEGASUS_STAGERHEX | SMS-PP | Pegasus stage-1 binary SMS indicator |
+`assets/signatures/db.json` — compiled into the app bundle at build time.
+
+Schema:
+
+| Field        | Type   | Values                                                              |
+|--------------|--------|---------------------------------------------------------------------|
+| `id`         | string | unique identifier                                                   |
+| `name`       | string | display name                                                        |
+| `category`   | string | `stk`, `sim_ota`, `pegasus`, `ss7_map`, `ss7`, `gtp`, `malware`    |
+| `severity`   | string | `info`, `low`, `medium`, `high`, `critical`                         |
+| `pattern`    | string | hex bytes, space-separated                                          |
+| `mask`       | string | optional byte mask: `FF` = must match, `00` = wildcard             |
+| `description`| string | attack description                                                  |
+
+To update signatures without rebuilding: the station probe pushes `MSG_SIG_UPDATE`
+patches over the TCP connection. The app merges them into the in-memory database at
+runtime. To ship a permanent update, replace `db.json` and release a new build.
+
 
 ---
 
-## Station Probe Protocol
 
-Wire format (matches CollectedNET transport v1):
+## SS7 payload catalogue
+
+`src/ss7/PayloadCatalogue.ts`
+
+| ID                    | Layer    | Attack                                              |
+|-----------------------|----------|-----------------------------------------------------|
+| SILENT_TYPE0          | SMS-PP   | Type-0 silent SMS (PID 0x40)                        |
+| FLASH_CLASS0          | SMS-PP   | Class-0 flash SMS (social engineering display)      |
+| SIM_OTA_UDH70         | SIM-OTA  | SIM OTA command (IEI 0x70)                         |
+| SIM_OTA_UDH71         | SIM-OTA  | SIM OTA response (IEI 0x71)                        |
+| STK_PROACTIVE_7F      | STK      | STK ProactiveCommand (PID 0x7F)                    |
+| STK_SEND_SMS          | STK      | SEND SHORT MESSAGE — data exfiltration             |
+| STK_LAUNCH_BROWSER    | STK      | LAUNCH BROWSER — drive-by exploit delivery         |
+| USSD_PUSH_HIJACK      | USSD     | MAP USSD push used for credential theft            |
+| MAP_SRILSM            | SS7-MAP  | SRI-SM — IMSI harvesting                           |
+| MAP_ATI               | SS7-MAP  | AnyTimeInterrogation — real-time location query    |
+| MAP_ISD               | SS7-MAP  | InsertSubscriberData — call forwarding injection   |
+| GTP_HIJACK            | GTP      | GTPv1 session spoofing                             |
+| NSO_PEGASUS_STAGERHEX | SMS-PP   | Pegasus stage-1 binary SMS byte pattern indicator  |
+
+
+---
+
+
+## Station probe protocol
+
+Wire format:
 
 ```
-2B  MSG_TYPE
-4B  PAYLOAD_LEN
-NB  JSON payload
++--------+------------+--------------------+
+| 2 bytes| 4 bytes    | N bytes            |
+| MSG_TYPE| PAYLOAD_LEN| JSON payload       |
++--------+------------+--------------------+
 ```
 
 Message types:
-| Type | Direction | Description |
-|------|-----------|-------------|
-| 0x0001 | Client→Station | PROBE_HELLO (device_id, platform, version) |
-| 0x0003 | Client→Station | PING |
-| 0x0004 | Station→Client | PONG (echo timestamp for latency) |
-| 0x0005 | Station→Client | SIG_UPDATE (signature DB patch JSON) |
-| 0x0002 | Station→Client | ALERT (station-pushed alert) |
+
+| Type   | Direction        | Description                                      |
+|--------|------------------|--------------------------------------------------|
+| 0x0001 | Client to station| PROBE_HELLO — device_id, platform, app version   |
+| 0x0003 | Client to station| PING                                             |
+| 0x0004 | Station to client| PONG — echoes timestamp for latency measurement  |
+| 0x0005 | Station to client| SIG_UPDATE — signature DB patch (JSON)           |
+| 0x0002 | Station to client| ALERT — station-pushed alert                     |
+
+The station address and port are configurable in Settings (default:
+140.82.39.182:5556). The connection is optional; all local detection features work
+without it.
+
 
 ---
 
-## Tests
+
+## Auto-update system
+
+The app checks for newer versions on startup and shows a dismissible banner if one
+is available. The banner links to the public releases page.
+
+How it works:
+
+1. `APP_VERSION` is embedded in the binary from `src/config/build.ts` at build time.
+2. Thirty seconds after launch, `UpdateChecker.ts` fetches the GitHub Releases API
+   url defined in `RELEASES_API_URL`.
+3. The `tag_name` field of the latest release (e.g. `v1.0.3`) is compared against
+   `APP_VERSION` using semver ordering.
+4. If the release version is higher, the update banner appears at the bottom of
+   every screen for the rest of the session.
+
+The API endpoint and version constant are both in one file:
+
+```typescript
+// src/config/build.ts
+
+export const APP_VERSION = '1.0.2';
+
+export const RELEASES_API_URL =
+  process.env['FIELDGUARD_RELEASES_URL'] ??
+  'https://api.github.com/repos/LBSINTER/LBS-FieldGuardPublic/releases/latest';
+```
+
+To use a private or self-hosted endpoint, replace the URL or set the
+`FIELDGUARD_RELEASES_URL` environment variable before building. The endpoint must
+return JSON with at minimum:
+
+```json
+{
+  "tag_name": "v1.0.3",
+  "html_url": "https://github.com/LBSINTER/LBS-FieldGuardPublic/releases/tag/v1.0.3"
+}
+```
+
+
+---
+
+
+## Running tests
 
 ```bash
 npm test
 ```
 
-Tests cover:
+Test coverage:
+
 - PDU encode/decode round-trip (GSM-7, binary, Type-0, STK)
-- Signature DB loading and byte matching
-- Payload catalogue classification
+- Signature DB loading and byte-pattern matching
+- SS7 payload catalogue classification
+
 
 ---
 
-## Requirements
 
-| Component | Minimum |
-|-----------|---------|
-| Node.js | 18 |
-| React Native | 0.73 |
-| Android SDK | API 26 (Android 8) |
-| Windows | 10 1903+ with Npcap |
-| Java | 17 |
-| Visual Studio | 2022 (UWP workload) |
+## Releasing a new version
 
----
-
-## Auto-Update Configuration
-
-LBS FieldGuard checks for newer releases at startup and displays a dismissible banner when an update is available.
-
-### How it works
-
-1. The app reads `APP_VERSION` from `src/config/build.ts` (set at build time).
-2. On launch (after a 30-second delay), it fetches the GitHub Releases API endpoint defined in `RELEASES_API_URL`.
-3. The latest release `tag_name` (e.g. `v1.0.2`) is compared against `APP_VERSION` using semver ordering.
-4. If a newer version exists, an **Update** banner appears at the bottom of every screen.  
-   Tapping **Update** opens the release page in the system browser.  
-   Tapping **×** dismisses the banner for the session.
-
-### Configuring the update endpoint
-
-Edit **`src/config/build.ts`** before building:
-
-```typescript
-// src/config/build.ts
-
-/** Version string embedded at build time - must match the git tag. */
-export const APP_VERSION = '1.0.2';
-
-/**
- * GitHub Releases API URL used to check for newer versions.
- * Change this if you fork the repo or host releases elsewhere.
- * Must return a JSON body with `tag_name` and `html_url` fields.
- */
-export const RELEASES_API_URL =
-  'https://api.github.com/repos/LBSINTER/LBS-FieldGuard/releases/latest';
-```
-
-For a private endpoint, replace `RELEASES_API_URL` with any URL that returns:
-
-```json
-{
-  "tag_name": "v1.0.2",
-  "html_url": "https://example.com/releases/v1.0.2",
-  "body": "Release notes here"
-}
-```
-
-### Releasing a new version
-
-1. Bump `versionName` in `android/app/build.gradle` and `versionCode` by 1.
+1. Bump `versionCode` (increment by 1) and `versionName` in
+   `android/app/build.gradle`.
 2. Update `APP_VERSION` in `src/config/build.ts` to match the new `versionName`.
-3. Commit, tag, and push:
+3. Update `README.md` if anything significant changed.
+4. Commit, tag, and push:
 
 ```bash
 git add -A
-git commit -m "chore: bump version to X.Y.Z"
+git commit -m "chore: bump to vX.Y.Z"
 git tag vX.Y.Z
 git push origin main --tags
 ```
 
-4. GitHub Actions (`.github/workflows/build-apk.yml`) detects the `v*` tag and:
-   - Builds the release APK
-   - Creates a GitHub Release with the APK attached
+The GitHub Actions workflow detects the `v*` tag, builds the release APK, and
+publishes it to `LBSINTER/LBS-FieldGuardPublic`. Devices running older versions
+will see the update banner on their next launch once the release is live.
 
-Users running older builds will see the update banner automatically on next launch.
-
+Before the first release from a new repository setup, add the
+`FIELDGUARD_PUBLIC_PAT` secret (a GitHub PAT with `repo` scope on
+`LBS-FieldGuardPublic`) to this repository's Settings > Secrets > Actions.

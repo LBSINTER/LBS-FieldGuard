@@ -139,34 +139,60 @@ jobs:
           path: ${{ steps.rename_apk.outputs.apk_path }}
           retention-days: 30
 
-      # ── Create / update GitHub Release and attach APK ─────────────────────────
-      - name: Attach APK to GitHub Release
+
+      # ── Publish release to LBS-FieldGuardPublic (public-facing repo) ────────
+      # Requires a repository secret named FIELDGUARD_PUBLIC_PAT containing a
+      # GitHub PAT with `repo` scope on LBSINTER/LBS-FieldGuardPublic.
+      - name: Publish release to LBS-FieldGuardPublic
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.FIELDGUARD_PUBLIC_PAT }}
+          TAG: ${{ steps.rename_apk.outputs.tag }}
+          APK: ${{ steps.rename_apk.outputs.apk_path }}
+        run: |
+          NOTES="LBS FieldGuard ${TAG}
+
+          Android APK - direct install
+          ------------------------------------------------
+          1. Download the APK file attached below.
+          2. On the device: Settings > Apps > Install unknown apps, allow the
+             file manager or browser you will use to open the file.
+          3. Tap the downloaded APK to install.
+
+          Via ADB:
+            adb install ${APK}
+
+          Required Android permissions
+          ------------------------------------------------
+          RECEIVE_SMS / READ_SMS       RIL layer SMS intercept
+          READ_PHONE_STATE             IMSI and cell tower info
+          BIND_VPN_SERVICE             Packet capture (TUN interface)
+          MANAGE_EXTERNAL_STORAGE      File scanner
+
+          Minimum supported version: Android 8.0 (API level 26)
+          Built by GitHub Actions from commit ${{ github.sha }}"
+
+          # Try to create a new release; if the tag already exists, upload to it
+          gh release create "${TAG}" "${APK}" \
+            --repo LBSINTER/LBS-FieldGuardPublic \
+            --title "LBS FieldGuard ${TAG}" \
+            --notes "${NOTES}" \
+            --latest \
+          || gh release upload "${TAG}" "${APK}" \
+               --repo LBSINTER/LBS-FieldGuardPublic \
+               --clobber
+
+      # ── Archive APK to private repo release ─────────────────────────────────
+      - name: Attach APK to private repo release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.rename_apk.outputs.tag }}
           name: "LBS FieldGuard ${{ steps.rename_apk.outputs.tag }}"
           body: |
-            ## LBS FieldGuard ${{ steps.rename_apk.outputs.tag }}
-
-            ### Android APK
-
-            Download `${{ steps.rename_apk.outputs.apk_name }}` below and install directly:
-
-            ```
-            adb install ${{ steps.rename_apk.outputs.apk_name }}
-            ```
-
-            **Required Android permissions:**
-            - `RECEIVE_SMS` / `READ_SMS` — RIL monitor
-            - `READ_PHONE_STATE` — IMSI/cell info
-            - `BIND_VPN_SERVICE` — packet capture
-            - `MANAGE_EXTERNAL_STORAGE` — file scanner
-
-            **Minimum:** Android 8.0 (API 26)
-
-            ---
-            *Built by GitHub Actions — commit ${{ github.sha }}*
+            Internal build archive.
+            Public release: https://github.com/LBSINTER/LBS-FieldGuardPublic/releases/tag/${{ steps.rename_apk.outputs.tag }}
+            Commit: ${{ github.sha }}
           files: ${{ steps.rename_apk.outputs.apk_path }}
           draft: false
           prerelease: false
