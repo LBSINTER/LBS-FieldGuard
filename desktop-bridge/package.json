@@ -1,0 +1,14 @@
+{
+  "name": "lbs-fieldguard-bridge",
+  "version": "1.0.6",
+  "description": "LBS FieldGuard PC Bridge – Desktop companion for the LBS FieldGuard mobile app.",
+  "main": "bridge.js",
+  "bin": "bridge.js",
+  "pkg": {
+    "targets": ["node18-win-x64"],
+    "outputPath": "dist"
+  },
+  "scripts": {
+    "build": "pkg . --targets node18-win-x64 --output dist/LBS-FieldGuard-Bridge.exe"
+  }
+}
