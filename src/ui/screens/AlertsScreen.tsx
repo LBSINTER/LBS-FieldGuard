@@ -1,3 +1,4 @@
+import { useScreenSize } from '../hooks/useScreenSize';
 /**
  * LBS FieldGuard — Alerts Screen
  *
@@ -10,11 +11,11 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ScrollView,
 } from 'react-native';
-import { useAppStore } from '../store/appStore';
-import { Alert, Severity } from '../types';
-import Icon from './components/Icon';
-import { bytesToHex, hexToBytes } from '../android/PDUCodec';
-import { classifyPayload } from '../ss7/PayloadCatalogue';
+import { useAppStore } from '../../store/appStore';
+import { Alert, Severity } from '../../types';
+import Icon from '../components/Icon';
+import { bytesToHex, hexToBytes } from '../../android/PDUCodec';
+import { classifyPayload } from '../../ss7/PayloadCatalogue';
 
 const SEV_COLOR: Record<Severity, string> = {
   info:     '#8b949e',
@@ -26,6 +27,7 @@ const SEV_COLOR: Record<Severity, string> = {
 
 export default function AlertsScreen() {
   const { alerts, clearAlerts } = useAppStore();
+  const { scale, fontSize, maxContentWidth } = useScreenSize();
   const [expanded, setExpanded] = useState<string | null>(null);
 
   return (

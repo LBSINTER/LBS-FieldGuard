@@ -1,3 +1,4 @@
+import { useScreenSize } from '../hooks/useScreenSize';
 /**
  * LBS FieldGuard — Scanner Screen
  *
@@ -10,10 +11,10 @@ import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator, Platform,
 } from 'react-native';
-import { useAppStore } from '../store/appStore';
-import { scanDirectory } from '../scanner/FileScanner';
-import { ScanResult } from '../types';
-import Icon from './components/Icon';
+import { useAppStore } from '../../store/appStore';
+import { scanDirectory } from '../../scanner/FileScanner';
+import { ScanResult } from '../../types';
+import Icon from '../components/Icon';
 
 // Predefined scan targets per platform
 const SCAN_TARGETS: Record<string, string[]> = {
@@ -34,6 +35,7 @@ const VERDICT_COLOR = { clean: '#3fb950', suspicious: '#d29922', malicious: '#f8
 
 export default function ScannerScreen() {
   const { addScanResult, clearScanResults, scanResults } = useAppStore();
+  const { scale, fontSize, maxContentWidth } = useScreenSize();
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState({ scanned: 0, total: 0 });
   const [activeTarget, setActiveTarget] = useState<string>('');

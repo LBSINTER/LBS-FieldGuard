@@ -253,3 +253,67 @@ Tests cover:
 | Windows | 10 1903+ with Npcap |
 | Java | 17 |
 | Visual Studio | 2022 (UWP workload) |
+
+---
+
+## Auto-Update Configuration
+
+LBS FieldGuard checks for newer releases at startup and displays a dismissible banner when an update is available.
+
+### How it works
+
+1. The app reads `APP_VERSION` from `src/config/build.ts` (set at build time).
+2. On launch (after a 30-second delay), it fetches the GitHub Releases API endpoint defined in `RELEASES_API_URL`.
+3. The latest release `tag_name` (e.g. `v1.0.2`) is compared against `APP_VERSION` using semver ordering.
+4. If a newer version exists, an **Update** banner appears at the bottom of every screen.  
+   Tapping **Update** opens the release page in the system browser.  
+   Tapping **×** dismisses the banner for the session.
+
+### Configuring the update endpoint
+
+Edit **`src/config/build.ts`** before building:
+
+```typescript
+// src/config/build.ts
+
+/** Version string embedded at build time - must match the git tag. */
+export const APP_VERSION = '1.0.2';
+
+/**
+ * GitHub Releases API URL used to check for newer versions.
+ * Change this if you fork the repo or host releases elsewhere.
+ * Must return a JSON body with `tag_name` and `html_url` fields.
+ */
+export const RELEASES_API_URL =
+  'https://api.github.com/repos/LBSINTER/LBS-FieldGuard/releases/latest';
+```
+
+For a private endpoint, replace `RELEASES_API_URL` with any URL that returns:
+
+```json
+{
+  "tag_name": "v1.0.2",
+  "html_url": "https://example.com/releases/v1.0.2",
+  "body": "Release notes here"
+}
+```
+
+### Releasing a new version
+
+1. Bump `versionName` in `android/app/build.gradle` and `versionCode` by 1.
+2. Update `APP_VERSION` in `src/config/build.ts` to match the new `versionName`.
+3. Commit, tag, and push:
+
+```bash
+git add -A
+git commit -m "chore: bump version to X.Y.Z"
+git tag vX.Y.Z
+git push origin main --tags
+```
+
+4. GitHub Actions (`.github/workflows/build-apk.yml`) detects the `v*` tag and:
+   - Builds the release APK
+   - Creates a GitHub Release with the APK attached
+
+Users running older builds will see the update banner automatically on next launch.
+

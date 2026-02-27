@@ -15,6 +15,7 @@ import { initProbe } from './probe/ProbeClient';
 import { loadSignatures } from './scanner/SignatureDB';
 import { startRILMonitor } from './android/RILMonitor';
 import { startPacketCapture } from './network/PacketAnalyser';
+import UpdateBanner from './ui/components/UpdateBanner';
 
 const DARK_BG = '#0d1117';
 
@@ -47,6 +48,8 @@ export default function App() {
         <StatusBar barStyle="light-content" backgroundColor={DARK_BG} />
         <View style={styles.root}>
           <RootNavigator />
+          {/* Auto-update notification — fires 3 s after launch */}
+          <UpdateBanner checkDelayMs={3_000} />
         </View>
       </NavigationContainer>
     </SafeAreaProvider>

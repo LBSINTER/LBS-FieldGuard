@@ -1,11 +1,14 @@
 /**
  * LBS FieldGuard — Settings Screen
+ * Responsive: font sizes and padding scale with device class.
  */
 
 import React, { useState } from 'react';
 import { View, Text, TextInput, Switch, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Icon from './components/Icon';
+import Icon from '../components/Icon';
+import { useScreenSize } from '../hooks/useScreenSize';
+import { APP_VERSION } from '../../config/build';
 
 const KEYS = {
   STATION_HOST: 'fg_station_host',
@@ -21,6 +24,8 @@ export default function SettingsScreen() {
   const [deepScan, setDeepScan] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  const { scale, fontSize, maxContentWidth } = useScreenSize();
+
   async function save() {
     await AsyncStorage.multiSet([
       [KEYS.STATION_HOST, host],
@@ -33,35 +38,52 @@ export default function SettingsScreen() {
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Settings</Text>
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={[
+        { padding: scale(16), paddingBottom: scale(32) },
+        maxContentWidth ? { alignSelf: 'center', width: '100%', maxWidth: maxContentWidth } : undefined,
+      ]}
+    >
+      <Text style={[styles.title, { fontSize: fontSize(20) }]}>Settings</Text>
 
-      <Text style={styles.section}>Station Connection</Text>
-      <Text style={styles.label}>Station Host</Text>
-      <TextInput style={styles.input} value={host} onChangeText={setHost}
-        placeholderTextColor="#8b949e" autoCapitalize="none" />
-      <Text style={styles.label}>Station Probe Port</Text>
-      <TextInput style={styles.input} value={port} onChangeText={setPort}
-        keyboardType="number-pad" placeholderTextColor="#8b949e" />
+      <Text style={[styles.section, { fontSize: fontSize(13) }]}>Station Connection</Text>
+      <Text style={[styles.label, { fontSize: fontSize(13) }]}>Station Host</Text>
+      <TextInput
+        style={[styles.input, { fontSize: fontSize(14), paddingHorizontal: scale(12), paddingVertical: scale(8) }]}
+        value={host} onChangeText={setHost}
+        placeholderTextColor="#8b949e" autoCapitalize="none"
+      />
+      <Text style={[styles.label, { fontSize: fontSize(13) }]}>Station Probe Port</Text>
+      <TextInput
+        style={[styles.input, { fontSize: fontSize(14), paddingHorizontal: scale(12), paddingVertical: scale(8) }]}
+        value={port} onChangeText={setPort}
+        keyboardType="number-pad" placeholderTextColor="#8b949e"
+      />
 
-      <Text style={styles.section}>Detection</Text>
+      <Text style={[styles.section, { fontSize: fontSize(13) }]}>Detection</Text>
       <View style={styles.row}>
-        <Text style={styles.toggleLabel}>VPN/Proxy IP detection</Text>
+        <Text style={[styles.toggleLabel, { fontSize: fontSize(14) }]}>VPN/Proxy IP detection</Text>
         <Switch value={vpnDetect} onValueChange={setVpnDetect}
           trackColor={{ false: '#30363d', true: '#1f6feb' }} thumbColor="#e6edf3" />
       </View>
       <View style={styles.row}>
-        <Text style={styles.toggleLabel}>Deep filesystem scan (slower)</Text>
+        <Text style={[styles.toggleLabel, { fontSize: fontSize(14) }]}>Deep filesystem scan (slower)</Text>
         <Switch value={deepScan} onValueChange={setDeepScan}
           trackColor={{ false: '#30363d', true: '#1f6feb' }} thumbColor="#e6edf3" />
       </View>
 
-      <TouchableOpacity style={styles.saveBtn} onPress={save}>
-        <Icon name={saved ? 'check' : 'content-save'} size={18} color="#0d1117" />
-        <Text style={styles.saveBtnTxt}>{saved ? ' Saved' : ' Save Settings'}</Text>
+      <TouchableOpacity
+        style={[styles.saveBtn, { borderRadius: scale(6), padding: scale(12), marginTop: scale(24) }]}
+        onPress={save}
+      >
+        <Icon name={saved ? 'check' : 'content-save'} size={scale(18)} color="#0d1117" />
+        <Text style={[styles.saveBtnTxt, { fontSize: fontSize(15) }]}>{saved ? ' Saved' : ' Save Settings'}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.version}>LBS FieldGuard v1.0.0</Text>
+      <Text style={[styles.version, { fontSize: fontSize(11), marginTop: scale(24) }]}>
+        LBS FieldGuard v{APP_VERSION}
+      </Text>
     </ScrollView>
   );
 }

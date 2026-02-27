@@ -1,3 +1,4 @@
+import { useScreenSize } from '../hooks/useScreenSize';
 /**
  * LBS FieldGuard — PDU Builder Screen
  *
@@ -12,14 +13,15 @@ import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Switch,
 } from 'react-native';
-import { useAppStore } from '../store/appStore';
-import { SS7_PAYLOAD_CATALOGUE } from '../ss7/PayloadCatalogue';
-import { encodePDU, decodePDU, bytesToHex, hexToBytes } from '../android/PDUCodec';
-import { nanoid } from '../utils/id';
-import Icon from './components/Icon';
+import { useAppStore } from '../../store/appStore';
+import { SS7_PAYLOAD_CATALOGUE } from '../../ss7/PayloadCatalogue';
+import { encodePDU, decodePDU, bytesToHex, hexToBytes } from '../../android/PDUCodec';
+import { nanoid } from '../../utils/id';
+import Icon from '../components/Icon';
 
 export default function PDUBuilderScreen() {
   const { addPDURecord } = useAppStore();
+  const { scale, fontSize, maxContentWidth } = useScreenSize();
 
   const [to, setTo] = useState('');
   const [text, setText] = useState('');

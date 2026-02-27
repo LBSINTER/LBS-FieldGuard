@@ -1,3 +1,4 @@
+import { useScreenSize } from '../hooks/useScreenSize';
 /**
  * LBS FieldGuard — Probe Screen
  *
@@ -7,9 +8,9 @@
 
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useAppStore } from '../store/appStore';
-import { initProbe, disconnectProbe } from '../probe/ProbeClient';
-import Icon from './components/Icon';
+import { useAppStore } from '../../store/appStore';
+import { initProbe, disconnectProbe } from '../../probe/ProbeClient';
+import Icon from '../components/Icon';
 
 const STATUS_COLOR: Record<string, string> = {
   connected:    '#3fb950',
@@ -20,6 +21,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function ProbeScreen() {
   const { probeStatus, probeLatencyMs, setProbeStatus } = useAppStore();
+  const { scale, fontSize, maxContentWidth } = useScreenSize();
   const color = STATUS_COLOR[probeStatus] ?? '#8b949e';
 
   async function reconnect() {
