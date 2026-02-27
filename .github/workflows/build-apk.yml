@@ -5,12 +5,29 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g. v1.0.0)'
+        required: false
+        default: ''
 
 jobs:
-  build-apk:
-    name: Build release APK
-    runs-on: ubuntu-22.04
-    timeout-minutes: 60
+  dispatch-build:
+    name: Trigger public repo build
+    runs-on: ubuntu-latest
     steps:
-      - name: Hello
-        run: echo "Build triggered"
+      - name: Send build dispatch to LBS-FieldGuardPublic
+        env:
+          GH_TOKEN: ${{ secrets.FIELDGUARD_PUBLIC_PAT }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [ -z "$TAG" ] && [ -n "${{ github.event.inputs.tag }}" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            /repos/LBSINTER/LBS-FieldGuardPublic/dispatches \
+            -f event_type=build_apk \
+            -f "client_payload[tag]=${TAG}" \
+            -f "client_payload[sha]=${{ github.sha }}"
