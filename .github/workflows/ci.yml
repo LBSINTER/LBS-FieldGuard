@@ -1,4 +1,4 @@
-name: CI — Android build check
+name: CI - Android build check
 
 on:
   push:
