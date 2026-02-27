@@ -1,0 +1,23 @@
+node_modules/
+android/app/build/
+android/.gradle/
+android/local.properties
+windows/*/Release/
+windows/*/Debug/
+windows/*/Generated Files/
+windows/*/.vs/
+*.jks
+*.keystore
+!debug.keystore
+.env
+.bundle/
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.yarn-integrity
+coverage/

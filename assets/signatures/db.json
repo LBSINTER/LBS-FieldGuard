@@ -1,0 +1,134 @@
+[
+  {
+    "id": "STK_PROACTIVE_D0",
+    "name": "STK ProactiveCommand (0xD0)",
+    "category": "stk",
+    "severity": "critical",
+    "pattern": "d0",
+    "description": "STK BER-TLV ProactiveCommand tag — root of all SIM Toolkit commands"
+  },
+  {
+    "id": "STK_SEND_SMS_D0_13",
+    "name": "STK SEND SHORT MESSAGE",
+    "category": "stk",
+    "severity": "critical",
+    "pattern": "d0 00 81 03 01 13",
+    "mask": "ff 00 ff ff ff ff",
+    "description": "STK ProactiveCommand SEND SHORT MESSAGE — command qualifier 0x13"
+  },
+  {
+    "id": "STK_LAUNCH_BROWSER_D0_15",
+    "name": "STK LAUNCH BROWSER",
+    "category": "stk",
+    "severity": "high",
+    "pattern": "d0 00 81 03 01 15",
+    "mask": "ff 00 ff ff ff ff",
+    "description": "STK ProactiveCommand LAUNCH BROWSER — command qualifier 0x15"
+  },
+  {
+    "id": "STK_SETUP_CALL_D0_10",
+    "name": "STK SET UP CALL",
+    "category": "stk",
+    "severity": "high",
+    "pattern": "d0 00 81 03 01 10",
+    "mask": "ff 00 ff ff ff ff",
+    "description": "STK ProactiveCommand SET UP CALL — command qualifier 0x10"
+  },
+  {
+    "id": "SIM_OTA_IEI70",
+    "name": "SIM OTA Command (UDH IEI=0x70)",
+    "category": "sim_ota",
+    "severity": "critical",
+    "pattern": "06 70",
+    "description": "UDH Information Element 0x70 — SIM Data Download (OTA command to SIM)"
+  },
+  {
+    "id": "SIM_OTA_IEI71",
+    "name": "SIM OTA Response (UDH IEI=0x71)",
+    "category": "sim_ota",
+    "severity": "critical",
+    "pattern": "06 71",
+    "description": "UDH Information Element 0x71 — SIM Toolkit security (OTA response)"
+  },
+  {
+    "id": "NSO_PEGASUS_STAGE1",
+    "name": "Pegasus Stage-1 binary SMS prefix",
+    "category": "pegasus",
+    "severity": "critical",
+    "pattern": "91 10",
+    "description": "Binary SMS with originator type 0x91 and prefix 0x10 — observed in Pegasus stage-1 delivery samples (Citizen Lab, Amnesty Tech)"
+  },
+  {
+    "id": "GTP_CREATE_SESSION",
+    "name": "GTPv1 Create Session Request",
+    "category": "gtp",
+    "severity": "high",
+    "pattern": "32 01 00",
+    "description": "GTPv1 message type 0x01 (Create PDP Context Request) — rogue GTP session creation"
+  },
+  {
+    "id": "M2PA_SIGTRAN",
+    "name": "M2PA SIGTRAN header",
+    "category": "ss7",
+    "severity": "high",
+    "pattern": "01 00 0b",
+    "description": "SIGTRAN M2PA chunk type 0x0B — SS7-over-IP message user adaptation"
+  },
+  {
+    "id": "SCCP_UDT_CLASS0",
+    "name": "SCCP UDT Class-0",
+    "category": "ss7",
+    "severity": "medium",
+    "pattern": "09 00",
+    "description": "SCCP Unitdata (0x09) message class 0 — connectionless SS7 transport unit"
+  },
+  {
+    "id": "TCAP_INVOKE",
+    "name": "TCAP Invoke component",
+    "category": "ss7",
+    "severity": "medium",
+    "pattern": "62 00 6c 00 a1",
+    "mask": "ff 00 ff 00 ff",
+    "description": "TCAP Begin message with Invoke component — SS7 MAP/CAP operation initiation"
+  },
+  {
+    "id": "MAP_SRI_SM",
+    "name": "MAP SendRoutingInfoForSM",
+    "category": "ss7_map",
+    "severity": "high",
+    "pattern": "02 01 2d",
+    "description": "MAP opcode 45 (0x2D) — SRI-SM, used for IMSI harvesting"
+  },
+  {
+    "id": "MAP_ISD",
+    "name": "MAP InsertSubscriberData",
+    "category": "ss7_map",
+    "severity": "critical",
+    "pattern": "02 01 07",
+    "description": "MAP opcode 7 — ISD, used to inject call forwarding to attacker number"
+  },
+  {
+    "id": "MAP_ATI",
+    "name": "MAP AnyTimeInterrogation",
+    "category": "ss7_map",
+    "severity": "critical",
+    "pattern": "02 01 47",
+    "description": "MAP opcode 71 (0x47) — ATI, real-time subscriber location disclosure"
+  },
+  {
+    "id": "WAP_PUSH_BINARY",
+    "name": "WAP Push binary SMS",
+    "category": "wap",
+    "severity": "medium",
+    "pattern": "06 05 04 0b 84",
+    "description": "WAP Push binary SMS with application/vnd.wap.sic port header — used for WAP push phishing and Pegasus URL delivery"
+  },
+  {
+    "id": "EICAR_TEST",
+    "name": "EICAR antivirus test file",
+    "category": "malware",
+    "severity": "low",
+    "pattern": "58 35 4f 21 50 25 40 41 50 5b 34 5c 50 5a 58 35 34 28 50 5e 29 37 43 43 29 37 7d 24 45 49 43 41 52 2d 53 54 41 4e 44 41 52 44 2d 41 4e 54 49 56 49 52 55 53 2d 54 45 53 54 2d 46 49 4c 45 21 24 48 2b 48 2a",
+    "description": "EICAR standard antivirus test signature"
+  }
+]
