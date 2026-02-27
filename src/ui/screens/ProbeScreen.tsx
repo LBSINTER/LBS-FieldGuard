@@ -1,9 +1,7 @@
 import { useScreenSize } from '../hooks/useScreenSize';
 /**
  * LBS FieldGuard — Probe Screen
- *
- * Shows the live probe connection status, latency graph, and allows
- * manual reconnect / disconnect.
+ * Light theme matching lbs-int.com.
  */
 
 import React from 'react';
@@ -13,16 +11,16 @@ import { initProbe, disconnectProbe } from '../../probe/ProbeClient';
 import Icon from '../components/Icon';
 
 const STATUS_COLOR: Record<string, string> = {
-  connected:    '#3fb950',
-  connecting:   '#f0883e',
-  disconnected: '#8b949e',
-  error:        '#f85149',
+  connected:    '#16a34a',
+  connecting:   '#d97706',
+  disconnected: '#94a3b8',
+  error:        '#dc2626',
 };
 
 export default function ProbeScreen() {
   const { probeStatus, probeLatencyMs, setProbeStatus } = useAppStore();
   const { scale, fontSize, maxContentWidth } = useScreenSize();
-  const color = STATUS_COLOR[probeStatus] ?? '#8b949e';
+  const color = STATUS_COLOR[probeStatus] ?? '#94a3b8';
 
   async function reconnect() {
     setProbeStatus('connecting');
@@ -49,12 +47,12 @@ export default function ProbeScreen() {
 
       <View style={styles.actions}>
         <TouchableOpacity style={styles.btn} onPress={reconnect}>
-          <Icon name="refresh" size={18} color="#e6edf3" />
+          <Icon name="refresh" size={18} color="#0f172a" />
           <Text style={styles.btnTxt}> Reconnect</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.btn, styles.btnRed]} onPress={disconnect}>
-          <Icon name="close-circle" size={18} color="#f85149" />
-          <Text style={[styles.btnTxt, { color: '#f85149' }]}> Disconnect</Text>
+          <Icon name="close-circle" size={18} color="#dc2626" />
+          <Text style={[styles.btnTxt, { color: '#dc2626' }]}> Disconnect</Text>
         </TouchableOpacity>
       </View>
 
@@ -71,17 +69,17 @@ export default function ProbeScreen() {
 }
 
 const styles = StyleSheet.create({
-  root:       { flex: 1, backgroundColor: '#0d1117', padding: 16 },
-  title:      { fontSize: 20, fontWeight: '700', color: '#e6edf3', marginBottom: 16 },
-  card:       { backgroundColor: '#161b22', borderRadius: 8, borderWidth: 1, padding: 24, alignItems: 'center', gap: 8 },
+  root:       { flex: 1, backgroundColor: '#f8fafc', padding: 16 },
+  title:      { fontSize: 20, fontWeight: '700', color: '#0f172a', marginBottom: 16 },
+  card:       { backgroundColor: '#ffffff', borderRadius: 8, borderWidth: 1, padding: 24, alignItems: 'center', gap: 8 },
   status:     { fontSize: 22, fontWeight: '700' },
-  host:       { fontSize: 13, color: '#8b949e', fontFamily: 'monospace' },
-  latency:    { fontSize: 28, fontWeight: '700', color: '#58a6ff' },
+  host:       { fontSize: 13, color: '#64748b', fontFamily: 'monospace' },
+  latency:    { fontSize: 28, fontWeight: '700', color: '#2563eb' },
   actions:    { flexDirection: 'row', gap: 12, marginTop: 16 },
-  btn:        { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#161b22', borderRadius: 6, borderWidth: 1, borderColor: '#30363d', padding: 10 },
-  btnRed:     { borderColor: '#f85149' },
-  btnTxt:     { color: '#e6edf3', fontSize: 14 },
-  infoCard:   { backgroundColor: '#161b22', borderRadius: 8, borderWidth: 1, borderColor: '#30363d', padding: 16, marginTop: 16, gap: 4 },
-  infoLabel:  { fontSize: 11, color: '#8b949e', marginTop: 8 },
-  infoVal:    { fontSize: 13, color: '#e6edf3' },
+  btn:        { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 6, borderWidth: 1, borderColor: '#e2e8f0', padding: 10 },
+  btnRed:     { borderColor: '#dc2626' },
+  btnTxt:     { color: '#0f172a', fontSize: 14 },
+  infoCard:   { backgroundColor: '#ffffff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', padding: 16, marginTop: 16, gap: 4 },
+  infoLabel:  { fontSize: 11, color: '#64748b', marginTop: 8 },
+  infoVal:    { fontSize: 13, color: '#0f172a' },
 });

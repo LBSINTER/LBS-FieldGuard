@@ -140,6 +140,7 @@ export function decodePDU(hex: string): PDUDecoded {
   const tpMms = !!(fo & 0x04);
   const tpSri = !!(fo & 0x20);
   const tpUdhi = !!(fo & 0x40);
+  const tpRp   = !!(fo & 0x80);  // Reply-path
 
   // Originating address (sender)
   const oaLen = bytes[pos++]!; // length in semi-octets
@@ -169,6 +170,12 @@ export function decodePDU(hex: string): PDUDecoded {
     (dcs & 0x0c) === 0x00 ? 'gsm7' :
     (dcs & 0x0c) === 0x04 ? 'binary' :
     (dcs & 0x0c) === 0x08 ? 'ucs2' : 'unknown';
+  // Message class from DCS
+  const dcsClassBits: number = (dcs & 0x10) ? (dcs & 0x03) : ((dcs & 0xF0) === 0xF0 ? (dcs & 0x03) : 0);
+  const dcsClassMap: PDUDecoded['dcsClass'][] = ['class0', 'class1', 'class2', 'class3'];
+  const dcsClass: PDUDecoded['dcsClass'] = ((dcs & 0x10) || (dcs & 0xF0) === 0xF0)
+    ? (dcsClassMap[dcsClassBits] ?? 'none')
+    : 'none';
 
   let bodyStart = 0;
   if (tpUdhi) {
@@ -203,6 +210,9 @@ export function decodePDU(hex: string): PDUDecoded {
     udh,
     text,
     binaryPayload,
+    tpRp,
+    dcsClassBits,
+    dcsClass,
   };
 }
 
@@ -226,20 +236,35 @@ export interface EncodeOptions {
   pid?: number;       // default 0x00 — set 0x40 for Type-0 silent
   dcs?: number;       // default 0x00 GSM7; 0x04 binary; 0x08 UCS2
   udh?: UDHHeader[];
+  smsc?: string;      // SMSC address override (international format); null = use SIM default
+  ucs2?: boolean;     // encode text as UCS-2 (DCS=0x08) instead of GSM-7
+  mr?: number;        // TP-Message-Reference (default 0x00)
+  vp?: number;        // TP-Validity-Period relative value (default 0xa7 = 1 week)
 }
 
 export function encodePDU(opts: EncodeOptions): string {
   const parts: number[] = [];
 
-  // SMSC (empty — use default from SIM)
-  parts.push(0x00);
+  // SMSC field — optional prefix included in the hex string
+  if (opts.smsc) {
+    const smscDigits = opts.smsc.replace(/\D/g, '');
+    const smscType = opts.smsc.startsWith('+') ? 0x91 : 0x81;
+    const smscBcd = bcdEncode(smscDigits);
+    // SMSC length = 1 (type) + bcd bytes
+    parts.push(1 + smscBcd.length);
+    parts.push(smscType);
+    for (const b of smscBcd) parts.push(b);
+  } else {
+    // Empty SMSC — use SIM default
+    parts.push(0x00);
+  }
 
   // TP-MTI=01 (SMS-SUBMIT), TP-VPF=10 (relative VP)
   const tpUdhi = opts.udh && opts.udh.length > 0;
   parts.push(tpUdhi ? 0x41 : 0x01);
 
   // TP-MR (message reference)
-  parts.push(0x00);
+  parts.push(opts.mr ?? 0x00);
 
   // TP-DA (destination address)
   const toDigits = opts.to.replace(/\D/g, '');
@@ -249,16 +274,27 @@ export function encodePDU(opts: EncodeOptions): string {
   const encTo = bcdEncode(toDigits);
   for (const b of encTo) parts.push(b);
 
-  // PID, DCS
+  // PID
   const pid = opts.pid ?? 0x00;
-  const dcs = opts.dcs ?? (opts.binary ? 0x04 : 0x00);
   parts.push(pid);
+
+  // DCS — auto-select if not specified
+  let dcs: number;
+  if (opts.dcs !== undefined) {
+    dcs = opts.dcs;
+  } else if (opts.binary) {
+    dcs = 0x04;
+  } else if (opts.ucs2) {
+    dcs = 0x08;
+  } else {
+    dcs = 0x00;
+  }
   parts.push(dcs);
 
-  // TP-VP (relative, 1 week = 0xa7)
-  parts.push(0xa7);
+  // TP-VP (relative, default 0xa7 = 1 week)
+  parts.push(opts.vp ?? 0xa7);
 
-  // Build UD
+  // Build UDH bytes
   let udhBytes: number[] = [];
   if (tpUdhi && opts.udh) {
     const udhPayload: number[] = [];
@@ -269,9 +305,20 @@ export function encodePDU(opts: EncodeOptions): string {
     udhBytes = [udhPayload.length, ...udhPayload];
   }
 
+  // Build UD body
   let udBody: Uint8Array;
   if (opts.binary) {
     udBody = opts.binary;
+  } else if (opts.ucs2 || (dcs & 0x0c) === 0x08) {
+    // UCS-2 encoding
+    const text = opts.text ?? '';
+    const buf = new Uint8Array(text.length * 2);
+    for (let i = 0; i < text.length; i++) {
+      const code = text.charCodeAt(i);
+      buf[i * 2]     = (code >> 8) & 0xff;
+      buf[i * 2 + 1] = code & 0xff;
+    }
+    udBody = buf;
   } else {
     udBody = gsm7Encode(opts.text ?? '');
   }
@@ -280,10 +327,17 @@ export function encodePDU(opts: EncodeOptions): string {
   ud.set(udhBytes, 0);
   ud.set(udBody, udhBytes.length);
 
-  // UD length (in septets for GSM7, in bytes otherwise)
-  const udLen = dcs === 0x00
-    ? (opts.text?.length ?? 0) + (tpUdhi ? Math.ceil((udhBytes.length * 8) / 7) : 0)
-    : ud.length;
+  // UD length: septets for pure GSM-7 (no UDH), bytes otherwise
+  const isGsm7 = (dcs & 0x0c) === 0x00 && !opts.binary && !opts.ucs2;
+  let udLen: number;
+  if (isGsm7 && tpUdhi) {
+    // UDH occupies some septets: ceil(udhBytes.length * 8 / 7)
+    udLen = (opts.text?.length ?? 0) + Math.ceil((udhBytes.length * 8) / 7);
+  } else if (isGsm7) {
+    udLen = opts.text?.length ?? 0;
+  } else {
+    udLen = ud.length;
+  }
 
   parts.push(udLen);
   for (const b of ud) parts.push(b);

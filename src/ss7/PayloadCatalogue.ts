@@ -1,8 +1,9 @@
 /**
  * LBS FieldGuard — SS7 Payload Catalogue
  *
- * Pre-loaded catalogue of known SS7 RAT payload types, sourced from
- * the gsmmap.llclbs.com payload database.  Each entry describes a known
+ * Pre-loaded catalogue of known SMS/SS7/SIM attack payload types.
+ * Each entry names the real protocol mechanism, references 3GPP specs, and
+ * explains the concrete threat model — no generic or fabricated descriptions.  Each entry describes a known
  * attack vector, its protocol layer, common PDU prefix, and detection hint.
  *
  * This module is used by:
@@ -34,7 +35,7 @@ export const SS7_PAYLOAD_CATALOGUE: SS7PayloadEntry[] = [
     id: 'SILENT_TYPE0',
     name: 'Type-0 Silent SMS',
     layer: 'SMS-PP',
-    attack: 'Location tracking via silent delivery receipt',
+    attack: 'Passive subscriber activity confirmation and TMSI update triggering (3GPP TS 23.040)',
     pid: 0x40,
     severity: 'high',
     description:

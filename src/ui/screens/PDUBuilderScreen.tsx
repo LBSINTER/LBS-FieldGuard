@@ -1,221 +1,497 @@
-import { useScreenSize } from '../hooks/useScreenSize';
-/**
- * LBS FieldGuard — PDU Builder Screen
- *
- * Allows the field operator to:
- *   1. Pick a payload template from the SS7 catalogue (or custom)
- *   2. Fill in destination, content, PID/DCS overrides
- *   3. Build the PDU hex and inspect the decode
- *   4. Log built PDUs to the pduLog store
- */
-
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Switch,
+  Platform,
+  ScrollView,
+  SectionList,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useAppStore } from '../../store/appStore';
-import { SS7_PAYLOAD_CATALOGUE } from '../../ss7/PayloadCatalogue';
-import { encodePDU, decodePDU, bytesToHex, hexToBytes } from '../../android/PDUCodec';
 import { nanoid } from '../../utils/id';
+import { decodePDU, encodePDU, hexToBytes } from '../../android/PDUCodec';
+import { RawPDUSender } from '../../android/RawPDUSender';
+import {
+  DocumentationEntry,
+  getSendableEntries,
+  getSendableGroups,
+} from '../../ss7/DocumentationCatalogue';
 import Icon from '../components/Icon';
+
+/* ── colour constants matching lbs-int.com ── */
+const C = {
+  bg: '#f8fafc',
+  card: '#ffffff',
+  border: '#e2e8f0',
+  text: '#0f172a',
+  sub: '#334155',
+  muted: '#64748b',
+  accent: '#2563eb',
+  accentLight: '#eff6ff',
+  danger: '#dc2626',
+  success: '#16a34a',
+};
+
+function toTPDU(fullPduHex: string): string {
+  const clean = fullPduHex.replace(/\s/g, '');
+  const smscLen = parseInt(clean.slice(0, 2), 16);
+  const tpduOffset = (1 + smscLen) * 2;
+  return clean.slice(tpduOffset);
+}
+
+/* ── helpers ── */
+function hexPad(n: number): string {
+  return n.toString(16).toUpperCase().padStart(2, '0');
+}
 
 export default function PDUBuilderScreen() {
   const { addPDURecord } = useAppStore();
-  const { scale, fontSize, maxContentWidth } = useScreenSize();
 
+  /* ── build section data from catalogue ── */
+  const { sections, flatSendable } = useMemo(() => {
+    const entries = getSendableEntries();
+    const groups = getSendableGroups();
+    const secs = groups.map((g) => ({
+      title: g,
+      data: entries.filter((e) => e.group === g),
+    }));
+    return { sections: secs, flatSendable: entries };
+  }, []);
+
+  /* ── state ── */
+  const [selectedId, setSelectedId] = useState(flatSendable[0]?.id ?? '');
   const [to, setTo] = useState('');
-  const [text, setText] = useState('');
+  const [smsc, setSmsc] = useState('');
   const [pidHex, setPidHex] = useState('00');
   const [dcsHex, setDcsHex] = useState('00');
-  const [binaryPayload, setBinaryPayload] = useState('');
   const [useBinary, setUseBinary] = useState(false);
-  const [templateIdx, setTemplateIdx] = useState<number>(-1);
-  const [builtPDU, setBuiltPDU] = useState('');
-  const [decoded, setDecoded] = useState<ReturnType<typeof decodePDU> | null>(null);
-  const [error, setError] = useState('');
+  const [useUcs2, setUseUcs2] = useState(false);
+  const [text, setText] = useState('');
+  const [binaryHex, setBinaryHex] = useState('');
+  const [builtPdu, setBuiltPdu] = useState('');
+  const [decodedText, setDecodedText] = useState('');
+  const [status, setStatus] = useState('Select a template, fill destination and build.');
+  const [rawAvailable, setRawAvailable] = useState(false);
+  const [sendingRaw, setSendingRaw] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
 
-  const templates = SS7_PAYLOAD_CATALOGUE.filter(
-    (e) => e.pduPrefix || e.pid !== undefined || e.dcs !== undefined
-  );
+  /* ── check raw availability ── */
+  useEffect(() => {
+    let alive = true;
+    RawPDUSender.isRawPduAvailable()
+      .then((ok) => alive && setRawAvailable(ok))
+      .catch(() => alive && setRawAvailable(false));
+    return () => { alive = false; };
+  }, []);
 
-  function applyTemplate(idx: number) {
-    setTemplateIdx(idx);
-    const t = templates[idx];
+  /* ── apply template ── */
+  useEffect(() => {
+    const t = flatSendable.find((e) => e.id === selectedId);
     if (!t) return;
-    if (t.pid !== undefined) setPidHex(t.pid.toString(16).padStart(2, '0'));
-    if (t.dcs !== undefined) {
-      setDcsHex(t.dcs.toString(16).padStart(2, '0'));
-      setUseBinary((t.dcs & 0x04) !== 0);
-    }
-    if (t.pduPrefix) {
-      setBinaryPayload(t.pduPrefix.replace(/\?\?/g, '00').replace(/\s/g, ''));
-    }
-  }
+    setPidHex(hexPad(t.pid ?? 0));
+    setDcsHex(hexPad(t.dcs ?? 0));
+    setUseBinary(Boolean(t.binarySampleHex));
+    setUseUcs2(Boolean(t.ucs2));
+    setText(t.textSample ?? '');
+    setBinaryHex(t.binarySampleHex ?? '');
+    setStatus(`Template: ${t.title}`);
+  }, [selectedId, flatSendable]);
 
-  function build() {
-    setError('');
-    setBuiltPDU('');
-    setDecoded(null);
+  const selectedEntry = flatSendable.find((e) => e.id === selectedId);
+
+  /* ── build ── */
+  function buildPdu() {
     try {
+      const tpl = flatSendable.find((e) => e.id === selectedId);
+      if (!tpl) throw new Error('No template selected.');
+      if (!to.trim()) throw new Error('Destination MSISDN required.');
+
       const pid = parseInt(pidHex, 16);
       const dcs = parseInt(dcsHex, 16);
-      let pdu: string;
-      if (useBinary) {
-        pdu = encodePDU({
-          to,
-          binary: hexToBytes(binaryPayload),
-          pid,
-          dcs: dcs | 0x04,
-        });
-      } else {
-        pdu = encodePDU({ to, text, pid, dcs });
-      }
-      setBuiltPDU(pdu);
-      // Decode for verification
-      setDecoded(decodePDU(pdu));
-      // Log
+      if (isNaN(pid) || isNaN(dcs)) throw new Error('PID/DCS must be valid hex.');
+
+      const pdu = encodePDU({
+        to,
+        smsc: smsc.trim() || undefined,
+        pid,
+        dcs,
+        ucs2: useUcs2,
+        text: useBinary ? undefined : text,
+        binary: useBinary ? hexToBytes(binaryHex) : undefined,
+        udh: tpl.udh,
+      });
+
+      const decoded = decodePDU(pdu);
+      setBuiltPdu(pdu);
+      setDecodedText(
+        `PID=0x${hexPad(decoded.pid)} | DCS=0x${hexPad(decoded.dcs)} | ` +
+        `Encoding=${decoded.dcsEncoding} | UD=${decoded.ud?.length ?? 0} bytes`,
+      );
+
       addPDURecord({
         id: nanoid(),
         ts: Date.now(),
         direction: 'built',
         rawHex: pdu,
-        decoded: decodePDU(pdu),
-        label: templates[templateIdx]?.name,
+        decoded,
+        label: tpl.title,
       });
-    } catch (e: unknown) {
-      setError(String(e));
+
+      setStatus('PDU built successfully.');
+    } catch (e: any) {
+      setStatus(`Build error: ${String(e?.message ?? e)}`);
+      setBuiltPdu('');
+      setDecodedText('');
     }
   }
 
-  return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>PDU Builder</Text>
+  /* ── raw send ── */
+  async function sendRawPdu() {
+    if (!builtPdu) return setStatus('Build PDU first.');
+    if (!rawAvailable) return setStatus('Raw PDU API unavailable on this device.');
+    try {
+      setSendingRaw(true);
+      const tpdu = toTPDU(builtPdu);
+      const res = await RawPDUSender.sendRawPdu(tpdu, null);
+      if (!res.success) throw new Error(res.error ?? 'Send failed');
+      addPDURecord({
+        id: nanoid(), ts: Date.now(), direction: 'sent',
+        rawHex: builtPdu, decoded: decodePDU(builtPdu),
+        label: 'Raw PDU send', sendResult: 'success',
+      });
+      setStatus('Raw PDU sent successfully.');
+    } catch (e: any) {
+      setStatus(`Send error: ${String(e?.message ?? e)}`);
+    } finally {
+      setSendingRaw(false);
+    }
+  }
 
-      {/* Template picker */}
-      <Text style={styles.label}>Template (optional)</Text>
-      <ScrollView horizontal style={styles.templateScroll}>
-        {templates.map((t, i) => (
-          <TouchableOpacity
-            key={t.id}
-            style={[styles.templateChip, templateIdx === i && styles.templateChipActive]}
-            onPress={() => applyTemplate(i)}
-          >
-            <Text style={[styles.templateChipTxt, templateIdx === i && { color: '#0d1117' }]}>
-              {t.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      {templateIdx >= 0 && (
-        <Text style={styles.templateDesc}>{templates[templateIdx]?.description?.slice(0, 120)}…</Text>
-      )}
-
-      {/* Destination */}
-      <Text style={styles.label}>To (MSISDN)</Text>
-      <TextInput
-        style={styles.input}
-        value={to}
-        onChangeText={setTo}
-        placeholder="+1234567890"
-        placeholderTextColor="#8b949e"
-        keyboardType="phone-pad"
-      />
-
-      {/* PID / DCS */}
-      <View style={styles.row}>
+  /* ── template picker item ── */
+  function renderPickerItem({ item }: { item: DocumentationEntry }) {
+    const active = item.id === selectedId;
+    return (
+      <TouchableOpacity
+        style={[s.pickItem, active && s.pickItemActive]}
+        onPress={() => { setSelectedId(item.id); setShowPicker(false); }}
+        activeOpacity={0.65}
+      >
         <View style={{ flex: 1 }}>
-          <Text style={styles.label}>PID (hex)</Text>
-          <TextInput style={styles.input} value={pidHex} onChangeText={setPidHex}
-            placeholder="00" placeholderTextColor="#8b949e" autoCapitalize="none" />
+          <Text style={[s.pickTitle, active && { color: C.accent }]} numberOfLines={1}>{item.title}</Text>
+          <Text style={s.pickSpec} numberOfLines={1}>{item.spec}</Text>
         </View>
-        <View style={{ width: 12 }} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.label}>DCS (hex)</Text>
-          <TextInput style={styles.input} value={dcsHex} onChangeText={setDcsHex}
-            placeholder="00" placeholderTextColor="#8b949e" autoCapitalize="none" />
-        </View>
-      </View>
-
-      {/* Binary toggle */}
-      <View style={[styles.row, { marginVertical: 8 }]}>
-        <Text style={styles.label}>Binary payload</Text>
-        <Switch value={useBinary} onValueChange={setUseBinary}
-          trackColor={{ false: '#30363d', true: '#1f6feb' }} thumbColor="#e6edf3" />
-      </View>
-
-      {useBinary ? (
-        <>
-          <Text style={styles.label}>Payload hex</Text>
-          <TextInput
-            style={[styles.input, styles.mono]}
-            value={binaryPayload}
-            onChangeText={setBinaryPayload}
-            placeholder="d0 12 81 03 ..."
-            placeholderTextColor="#8b949e"
-            autoCapitalize="none"
-            multiline
-          />
-        </>
-      ) : (
-        <>
-          <Text style={styles.label}>Text (GSM-7)</Text>
-          <TextInput
-            style={styles.input}
-            value={text}
-            onChangeText={setText}
-            placeholder="Hello"
-            placeholderTextColor="#8b949e"
-          />
-        </>
-      )}
-
-      <TouchableOpacity style={styles.buildBtn} onPress={build}>
-        <Icon name="wrench" size={18} color="#0d1117" />
-        <Text style={styles.buildBtnTxt}> Build PDU</Text>
+        <Text style={s.pickPid}>PID {hexPad(item.pid ?? 0)} / DCS {hexPad(item.dcs ?? 0)}</Text>
       </TouchableOpacity>
+    );
+  }
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+  function renderSectionHeader({ section }: { section: { title: string } }) {
+    return (
+      <View style={s.secHeader}>
+        <Text style={s.secHeaderText}>{section.title}</Text>
+      </View>
+    );
+  }
 
-      {builtPDU ? (
-        <View style={styles.result}>
-          <Text style={styles.label}>Built PDU (SMS-SUBMIT):</Text>
-          <ScrollView horizontal>
-            <Text style={styles.hex}>{builtPDU.match(/.{1,2}/g)?.join(' ')}</Text>
-          </ScrollView>
-          {decoded && (
+  const androidNote =
+    Platform.OS === 'android'
+      ? `Android ${String(Platform.Version)}  —  raw send requires privileged/root access.`
+      : 'Raw PDU sending is Android-only.';
+
+  /* ── RENDER ── */
+  return (
+    <View style={s.root}>
+      {/* ── Full-screen section picker ── */}
+      {showPicker ? (
+        <View style={s.pickerWrap}>
+          <View style={s.pickerBar}>
+            <Text style={s.pickerBarTitle}>Select Template</Text>
+            <TouchableOpacity onPress={() => setShowPicker(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Icon name="close" size={22} color={C.text} />
+            </TouchableOpacity>
+          </View>
+          <SectionList
+            sections={sections}
+            keyExtractor={(item) => item.id}
+            renderItem={renderPickerItem}
+            renderSectionHeader={renderSectionHeader}
+            stickySectionHeadersEnabled
+            contentContainerStyle={{ paddingBottom: 30 }}
+          />
+        </View>
+      ) : (
+        /* ── Main builder form ── */
+        <ScrollView ref={scrollRef} style={s.scroll} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+
+          {/* title */}
+          <Text style={s.title}>PDU Builder</Text>
+          <Text style={s.subtitle}>{flatSendable.length} sendable templates across {sections.length} groups</Text>
+
+          {/* selected template card */}
+          <TouchableOpacity style={s.templateCard} onPress={() => setShowPicker(true)} activeOpacity={0.7}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.templateLabel}>TEMPLATE</Text>
+              <Text style={s.templateTitle} numberOfLines={1}>{selectedEntry?.title ?? '—'}</Text>
+              <Text style={s.templateGroup}>{selectedEntry?.group ?? ''}</Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={C.muted} />
+          </TouchableOpacity>
+
+          {/* selected template info */}
+          {selectedEntry && (
+            <View style={s.infoRow}>
+              <View style={s.infoPill}><Text style={s.infoPillText}>PID 0x{hexPad(selectedEntry.pid ?? 0)}</Text></View>
+              <View style={s.infoPill}><Text style={s.infoPillText}>DCS 0x{hexPad(selectedEntry.dcs ?? 0)}</Text></View>
+              {selectedEntry.udh ? <View style={s.infoPill}><Text style={s.infoPillText}>UDH</Text></View> : null}
+              {selectedEntry.ucs2 ? <View style={s.infoPill}><Text style={s.infoPillText}>UCS-2</Text></View> : null}
+              {selectedEntry.binarySampleHex ? <View style={s.infoPill}><Text style={s.infoPillText}>Binary</Text></View> : null}
+            </View>
+          )}
+
+          {selectedEntry && (
+            <Text style={s.descText}>{selectedEntry.description}</Text>
+          )}
+
+          {/* ── Destination ── */}
+          <Text style={s.label}>Destination (MSISDN)</Text>
+          <TextInput
+            value={to} onChangeText={setTo} style={s.input}
+            placeholder="+4512345678" placeholderTextColor={C.muted}
+            keyboardType="phone-pad"
+          />
+
+          {/* ── SMSC override ── */}
+          <Text style={s.label}>SMSC Override (optional)</Text>
+          <TextInput
+            value={smsc} onChangeText={setSmsc} style={s.input}
+            placeholder="+4510010010" placeholderTextColor={C.muted}
+            keyboardType="phone-pad"
+          />
+
+          {/* PID / DCS row */}
+          <View style={s.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>PID (hex)</Text>
+              <TextInput value={pidHex} onChangeText={setPidHex} style={s.input} autoCapitalize="characters" maxLength={2} />
+            </View>
+            <View style={{ width: 12 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>DCS (hex)</Text>
+              <TextInput value={dcsHex} onChangeText={setDcsHex} style={s.input} autoCapitalize="characters" maxLength={2} />
+            </View>
+          </View>
+
+          {/* switches */}
+          <View style={s.switchRow}>
+            <Text style={s.switchLabel}>Binary payload</Text>
+            <Switch
+              value={useBinary} onValueChange={setUseBinary}
+              trackColor={{ false: '#cbd5e1', true: '#93c5fd' }}
+              thumbColor={useBinary ? C.accent : '#f1f5f9'}
+            />
+          </View>
+          <View style={s.switchRow}>
+            <Text style={s.switchLabel}>UCS-2 encoding</Text>
+            <Switch
+              value={useUcs2} onValueChange={setUseUcs2}
+              trackColor={{ false: '#cbd5e1', true: '#93c5fd' }}
+              thumbColor={useUcs2 ? C.accent : '#f1f5f9'}
+            />
+          </View>
+
+          {/* payload */}
+          {useBinary ? (
             <>
-              <Text style={[styles.label, { marginTop: 8 }]}>Decoded verify:</Text>
-              <Text style={styles.decodedLine}>PID: 0x{decoded.pid.toString(16).toUpperCase().padStart(2,'0')}</Text>
-              <Text style={styles.decodedLine}>DCS: 0x{decoded.dcs.toString(16).toUpperCase().padStart(2,'0')} ({decoded.dcsEncoding})</Text>
-              {decoded.text && <Text style={styles.decodedLine}>Text: {decoded.text}</Text>}
-              {decoded.binaryPayload && (
-                <Text style={styles.decodedLine}>Binary: {decoded.binaryPayload.slice(0, 64)}…</Text>
-              )}
+              <Text style={s.label}>Binary Hex</Text>
+              <TextInput
+                value={binaryHex} onChangeText={setBinaryHex}
+                style={[s.input, { fontFamily: 'monospace', minHeight: 64 }]}
+                multiline placeholder="D011810301130082..." placeholderTextColor={C.muted}
+              />
+            </>
+          ) : (
+            <>
+              <Text style={s.label}>Text</Text>
+              <TextInput
+                value={text} onChangeText={setText}
+                style={[s.input, { minHeight: 48 }]}
+                multiline placeholder="Message body" placeholderTextColor={C.muted}
+              />
             </>
           )}
-        </View>
-      ) : null}
-    </ScrollView>
+
+          {/* actions */}
+          <TouchableOpacity style={s.btnPrimary} onPress={buildPdu} activeOpacity={0.75}>
+            <Icon name="wrench" size={16} color="#ffffff" />
+            <Text style={s.btnPrimaryText}>Build PDU</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[s.btnSecondary, !rawAvailable && { opacity: 0.45 }]}
+            onPress={sendRawPdu}
+            disabled={!rawAvailable || sendingRaw}
+            activeOpacity={0.7}
+          >
+            <Icon name="send-lock-outline" size={16} color={C.accent} />
+            <Text style={s.btnSecondaryText}>{sendingRaw ? 'Sending…' : 'Send via Raw PDU API'}</Text>
+          </TouchableOpacity>
+
+          <Text style={s.note}>{androidNote}</Text>
+
+          {/* status */}
+          <View style={s.statusBox}>
+            <Text style={s.statusText}>{status}</Text>
+            {decodedText ? <Text style={s.decodedLine}>{decodedText}</Text> : null}
+          </View>
+
+          {/* result */}
+          {builtPdu ? (
+            <View style={s.resultBox}>
+              <Text style={s.resultTitle}>Built PDU ({builtPdu.length / 2} bytes)</Text>
+              <Text style={s.resultHex}>{builtPdu.match(/.{1,2}/g)?.join(' ')}</Text>
+              <Text style={[s.resultTitle, { marginTop: 10 }]}>TPDU for Raw API</Text>
+              <Text style={s.resultHex}>{toTPDU(builtPdu).match(/.{1,2}/g)?.join(' ')}</Text>
+            </View>
+          ) : null}
+
+          <View style={{ height: 30 }} />
+        </ScrollView>
+      )}
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root:             { flex: 1, backgroundColor: '#0d1117' },
-  content:          { padding: 16 },
-  title:            { fontSize: 20, fontWeight: '700', color: '#e6edf3', marginBottom: 12 },
-  label:            { fontSize: 13, color: '#8b949e', marginTop: 12, marginBottom: 4 },
-  input:            { backgroundColor: '#161b22', borderRadius: 6, borderWidth: 1, borderColor: '#30363d', color: '#e6edf3', paddingHorizontal: 12, paddingVertical: 8, fontSize: 14 },
-  mono:             { fontFamily: 'monospace' },
-  row:              { flexDirection: 'row', alignItems: 'center' },
-  templateScroll:   { flexGrow: 0, marginVertical: 8 },
-  templateChip:     { backgroundColor: '#161b22', borderRadius: 16, borderWidth: 1, borderColor: '#30363d', paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
-  templateChipActive: { backgroundColor: '#58a6ff', borderColor: '#58a6ff' },
-  templateChipTxt:  { color: '#e6edf3', fontSize: 12 },
-  templateDesc:     { fontSize: 11, color: '#8b949e', marginBottom: 8 },
-  buildBtn:         { flexDirection: 'row', backgroundColor: '#238636', borderRadius: 6, padding: 12, alignItems: 'center', justifyContent: 'center', marginTop: 16 },
-  buildBtnTxt:      { color: '#e6edf3', fontWeight: '600', fontSize: 15 },
-  error:            { color: '#f85149', marginTop: 8, fontSize: 13 },
-  result:           { backgroundColor: '#161b22', borderRadius: 8, padding: 12, marginTop: 12, borderWidth: 1, borderColor: '#30363d' },
-  hex:              { fontFamily: 'monospace', fontSize: 12, color: '#79c0ff' },
-  decodedLine:      { fontSize: 12, color: '#e6edf3', marginTop: 2 },
+/* ── styles ── */
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.bg },
+  scroll: { flex: 1 },
+  content: { padding: 16 },
+  title: { color: C.text, fontSize: 22, fontWeight: '700' },
+  subtitle: { color: C.muted, fontSize: 12, marginTop: 2 },
+
+  /* template card */
+  templateCard: {
+    marginTop: 16,
+    backgroundColor: C.card,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  templateLabel: { fontSize: 10, fontWeight: '700', color: C.muted, letterSpacing: 0.8 },
+  templateTitle: { fontSize: 15, fontWeight: '600', color: C.text, marginTop: 2 },
+  templateGroup: { fontSize: 11, color: C.accent, marginTop: 2 },
+
+  infoRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, gap: 6 },
+  infoPill: {
+    backgroundColor: C.accentLight,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  infoPillText: { fontSize: 10, fontWeight: '600', color: C.accent },
+
+  descText: { color: C.sub, fontSize: 12, marginTop: 8, lineHeight: 17 },
+
+  /* form */
+  label: { color: C.muted, marginTop: 14, marginBottom: 4, fontSize: 11, fontWeight: '600', letterSpacing: 0.3 },
+  input: {
+    backgroundColor: C.card,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 8,
+    color: C.text,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  row: { flexDirection: 'row', alignItems: 'flex-end' },
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
+  switchLabel: { color: C.text, fontSize: 13 },
+
+  /* buttons */
+  btnPrimary: {
+    marginTop: 18,
+    backgroundColor: C.accent,
+    borderRadius: 8,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  btnPrimaryText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
+  btnSecondary: {
+    marginTop: 10,
+    backgroundColor: C.card,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  btnSecondaryText: { color: C.accent, fontWeight: '700', fontSize: 14 },
+  note: { marginTop: 8, color: C.muted, fontSize: 10 },
+
+  /* status & result */
+  statusBox: {
+    marginTop: 14,
+    backgroundColor: C.card,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+  },
+  statusText: { color: C.text, fontSize: 12 },
+  decodedLine: { color: C.accent, fontSize: 11, marginTop: 6, fontFamily: 'monospace' },
+  resultBox: {
+    marginTop: 12,
+    backgroundColor: C.card,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+  },
+  resultTitle: { color: C.text, fontSize: 12, fontWeight: '700' },
+  resultHex: { color: C.accent, fontSize: 11, fontFamily: 'monospace', marginTop: 4, lineHeight: 18 },
+
+  /* full-screen template picker */
+  pickerWrap: { flex: 1, backgroundColor: C.bg },
+  pickerBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  pickerBarTitle: { fontSize: 18, fontWeight: '700', color: C.text },
+  secHeader: {
+    backgroundColor: '#edf2f7',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  secHeaderText: { fontSize: 12, fontWeight: '700', color: C.accent, letterSpacing: 0.6, textTransform: 'uppercase' },
+  pickItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.border,
+    backgroundColor: C.card,
+  },
+  pickItemActive: { backgroundColor: C.accentLight },
+  pickTitle: { fontSize: 13, fontWeight: '600', color: C.text },
+  pickSpec: { fontSize: 10, color: C.muted, marginTop: 1 },
+  pickPid: { fontSize: 10, fontWeight: '600', color: C.muted, fontFamily: 'monospace', marginLeft: 8 },
 });

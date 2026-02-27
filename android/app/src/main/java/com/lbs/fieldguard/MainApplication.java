@@ -10,6 +10,7 @@ import com.facebook.react.defaults.DefaultReactNativeHost;
 import com.facebook.soloader.SoLoader;
 
 import com.lbs.fieldguard.ril.RILBridgePackage;
+import com.lbs.fieldguard.notify.FieldGuardNotifyPackage;
 
 import java.util.List;
 
@@ -27,6 +28,7 @@ public class MainApplication extends Application implements ReactApplication {
                 List<ReactPackage> packages = new PackageList(this).getPackages();
                 // Register LBS native modules
                 packages.add(new RILBridgePackage());
+                packages.add(new FieldGuardNotifyPackage());
                 return packages;
             }
 

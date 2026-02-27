@@ -5,19 +5,21 @@
  * Platform-aware: Android gets RIL monitor; Windows gets packet sniffer.
  */
 
-import React, { useEffect, Component, ErrorInfo, ReactNode } from 'react';
-import { Platform, StatusBar, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
+import { PermissionsAndroid, Platform, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { enableScreens } from 'react-native-screens';
 import RootNavigator from './ui/RootNavigator';
+import OnboardingScreen from './ui/screens/OnboardingScreen';
 import { useAppStore } from './store/appStore';
 import { initProbe } from './probe/ProbeClient';
 import { loadSignatures } from './scanner/SignatureDB';
 import { startRILMonitor } from './android/RILMonitor';
 import { startPacketCapture } from './network/PacketAnalyser';
 import UpdateBanner from './ui/components/UpdateBanner';
+import { THEME } from './ui/theme';
 
 // Must be called before any navigation rendering
 enableScreens();
@@ -35,9 +37,9 @@ class ErrorBoundary extends Component<{ children: ReactNode }, EBState> {
   render() {
     if (this.state.hasError) {
       return (
-        <View style={{ flex: 1, backgroundColor: '#0d1117', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-          <Text style={{ color: '#f85149', fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Something went wrong</Text>
-          <Text style={{ color: '#8b949e', fontSize: 13, textAlign: 'center' }}>{this.state.error?.message}</Text>
+        <View style={{ flex: 1, backgroundColor: THEME.bg, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+          <Text style={{ color: THEME.danger, fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Something went wrong</Text>
+          <Text style={{ color: THEME.textMuted, fontSize: 13, textAlign: 'center' }}>{this.state.error?.message}</Text>
         </View>
       );
     }
@@ -45,16 +47,23 @@ class ErrorBoundary extends Component<{ children: ReactNode }, EBState> {
   }
 }
 
-const DARK_BG = '#0d1117';
-
 export default function App() {
-  const { setProbeConnected, setSignaturesLoaded } = useAppStore();
+  const { setProbeConnected, setSignaturesLoaded, onboardingDone, loadSettingsFromStorage } = useAppStore();
 
   useEffect(() => {
     let mounted = true;
 
     // Async init — non-blocking and crash-safe
     (async () => {
+      // Load persisted settings first so all subsequent init uses correct config
+      await loadSettingsFromStorage();
+
+      if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+        try {
+          await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        } catch {}
+      }
+
       try {
         const count = await loadSignatures();
         if (mounted) setSignaturesLoaded(count);
@@ -92,10 +101,10 @@ export default function App() {
     <GestureHandlerRootView style={styles.root}>
       <ErrorBoundary>
         <SafeAreaProvider>
-          <NavigationContainer theme={{ dark: true, colors: { background: DARK_BG, border: '#30363d', card: '#161b22', notification: '#f0883e', primary: '#58a6ff', text: '#e6edf3' } }}>
-            <StatusBar barStyle="light-content" backgroundColor={DARK_BG} />
+          <NavigationContainer theme={{ dark: false, colors: { background: THEME.bg, border: THEME.border, card: THEME.surface, notification: THEME.warning, primary: THEME.primary, text: THEME.text } }}>
+            <StatusBar barStyle="dark-content" backgroundColor={THEME.bg} />
             <View style={styles.root}>
-              <RootNavigator />
+              {onboardingDone ? <RootNavigator /> : <OnboardingScreen onComplete={() => {}} />}
               {/* Auto-update notification — fires 3 s after launch */}
               <UpdateBanner checkDelayMs={3_000} />
             </View>
@@ -107,5 +116,5 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: DARK_BG },
+  root: { flex: 1, backgroundColor: THEME.bg },
 });

@@ -17,6 +17,7 @@ import { createHash } from '../utils/crypto';
 import { matchSignatures } from './SignatureDB';
 import { ScanResult, SignatureMatch } from '../types';
 import { nanoid } from '../utils/id';
+import { getSignatures } from './SignatureDB';
 
 const CHUNK_SIZE = 128 * 1024; // 128 KB
 const CHUNK_OVERLAP = 256;     // bytes of overlap to catch boundary patterns
@@ -38,6 +39,7 @@ export async function scanFile(filePath: string): Promise<ScanResult> {
 
   const allMatches: SignatureMatch[] = [];
   let sha256 = '';
+  const sigSeverity = new Map(getSignatures().map((sig) => [sig.id, sig.severity] as const));
 
   try {
     // Read full file for hash, then scan in chunks for memory efficiency
@@ -65,7 +67,8 @@ export async function scanFile(filePath: string): Promise<ScanResult> {
 
   const verdictScore = allMatches.reduce((acc, m) => {
     const weights: Record<string, number> = { critical: 10, high: 6, medium: 3, low: 1, info: 0 };
-    return acc + (weights[m.sigId] ?? 1);
+    const severity = sigSeverity.get(m.sigId) ?? 'low';
+    return acc + (weights[severity] ?? 1);
   }, 0);
 
   return {
@@ -109,6 +112,8 @@ export async function collectFiles(
  */
 export async function scanDirectory(opts: ScanOptions): Promise<ScanResult[]> {
   const files = await collectFiles(opts.path, opts.extensions);
+  // Return empty gracefully — let the UI handle the 0-result display
+  if (files.length === 0) return [];
   const results: ScanResult[] = [];
   for (let i = 0; i < files.length; i++) {
     opts.onProgress?.(i + 1, files.length);

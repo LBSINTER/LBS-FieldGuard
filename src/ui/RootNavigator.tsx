@@ -1,7 +1,7 @@
 /**
  * LBS FieldGuard — Root Navigator
- *
  * Bottom tab bar with stack sub-navigators per section.
+ * Light theme matching lbs-int.com.
  */
 
 import React from 'react';
@@ -12,7 +12,9 @@ import ScannerScreen from './screens/ScannerScreen';
 import PDUBuilderScreen from './screens/PDUBuilderScreen';
 import AlertsScreen from './screens/AlertsScreen';
 import ProbeScreen from './screens/ProbeScreen';
+import PCBridgeScreen from './screens/PCBridgeScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import SMSDocScreen from './screens/SMSDocScreen';
 import Icon from './components/Icon';
 
 const Tab = createBottomTabNavigator();
@@ -55,27 +57,31 @@ export default function RootNavigator() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: { backgroundColor: '#161b22', borderTopColor: '#30363d' },
-        tabBarActiveTintColor: '#58a6ff',
-        tabBarInactiveTintColor: '#8b949e',
+        tabBarStyle: { backgroundColor: '#ffffff', borderTopColor: '#e2e8f0' },
+        tabBarActiveTintColor: '#2563eb',
+        tabBarInactiveTintColor: '#94a3b8',
         tabBarIcon: ({ color, size }) => {
           const icons: Record<string, string> = {
-            DashTab: 'pulse',
-            ScanTab: 'shield-search',
-            PDUTab: 'code-braces',
-            AlertsTab: 'alert-circle',
-            ProbeTab: 'antenna',
+            DashTab:     'pulse',
+            ScanTab:     'shield-search',
+            PDUTab:      'code-braces',
+            AlertsTab:   'alert-circle',
+            ProbeTab:    'antenna',
+            BridgeTab:   'laptop',
             SettingsTab: 'cog',
+            SMSDocTab:   'book-open-variant',
           };
           return <Icon name={icons[route.name] ?? 'help'} size={size} color={color} />;
         },
       })}
     >
-      <Tab.Screen name="DashTab" component={DashStack} options={{ title: 'Dashboard' }} />
-      <Tab.Screen name="ScanTab" component={ScanStack} options={{ title: 'Scanner' }} />
-      <Tab.Screen name="PDUTab" component={PDUStack} options={{ title: 'PDU Builder' }} />
-      <Tab.Screen name="AlertsTab" component={AlertStack} options={{ title: 'Alerts' }} />
-      <Tab.Screen name="ProbeTab" component={ProbeScreen} options={{ title: 'Probe' }} />
+      <Tab.Screen name="DashTab"     component={DashStack}     options={{ title: 'Dashboard' }} />
+      <Tab.Screen name="ScanTab"     component={ScanStack}     options={{ title: 'Scanner' }} />
+      <Tab.Screen name="PDUTab"      component={PDUStack}      options={{ title: 'PDU Builder' }} />
+      <Tab.Screen name="AlertsTab"   component={AlertStack}    options={{ title: 'Alerts' }} />
+      <Tab.Screen name="ProbeTab"    component={ProbeScreen}   options={{ title: 'Probe' }} />
+      <Tab.Screen name="BridgeTab"   component={PCBridgeScreen} options={{ title: 'PC Bridge' }} />
+      <Tab.Screen name="SMSDocTab"   component={SMSDocScreen}  options={{ title: 'Documentation' }} />
       <Tab.Screen name="SettingsTab" component={SettingsScreen} options={{ title: 'Settings' }} />
     </Tab.Navigator>
   );
