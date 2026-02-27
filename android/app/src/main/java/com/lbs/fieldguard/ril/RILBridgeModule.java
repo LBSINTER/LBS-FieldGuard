@@ -3,9 +3,12 @@ package com.lbs.fieldguard.ril;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.telephony.SmsMessage;
 import android.util.Log;
+
+import androidx.core.content.ContextCompat;
 
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -43,6 +46,13 @@ public class RILBridgeModule extends ReactContextBaseJavaModule {
         return "RILBridge";
     }
 
+    // Required by NativeEventEmitter in RN 0.65+
+    @ReactMethod
+    public void addListener(String eventName) { /* no-op */ }
+
+    @ReactMethod
+    public void removeListeners(int count) { /* no-op */ }
+
     @ReactMethod
     public void startMonitor(Promise promise) {
         try {
@@ -73,7 +83,14 @@ public class RILBridgeModule extends ReactContextBaseJavaModule {
             filter.addAction("android.provider.Telephony.SMS_RECEIVED");
             filter.addAction("android.provider.Telephony.SMS_CB_RECEIVED");
             filter.setPriority(Integer.MAX_VALUE);
-            reactContext.registerReceiver(smsReceiver, filter);
+
+            // API 33+ requires RECEIVER_EXPORTED / RECEIVER_NOT_EXPORTED flag
+            ContextCompat.registerReceiver(
+                reactContext,
+                smsReceiver,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            );
             promise.resolve(null);
         } catch (Exception e) {
             promise.reject("ERR_RIL", e.getMessage());

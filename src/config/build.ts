@@ -37,7 +37,7 @@
  */
 
 // ── Current app version (must match android/app/build.gradle versionName) ────
-export const APP_VERSION = '1.0.3';
+export const APP_VERSION = '1.0.4';
 
 // ── GitHub Releases API endpoint used for update checks ──────────────────────
 // To use a self-hosted endpoint, the response must be GH-compatible JSON with

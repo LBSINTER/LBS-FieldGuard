@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow cleartext (non-TLS) traffic for probe relay and localhost -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">140.82.39.182</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+</network-security-config>
