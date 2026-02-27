@@ -1,0 +1,40 @@
+#!/bin/sh
+# Gradle start-up script for POSIX systems
+APP_NAME="Gradle"
+APP_BASE_NAME=$(basename "$0")
+GRADLE_OPTS="${GRADLE_OPTS:-}"
+
+# Resolve symlinks
+PRG="$0"
+while [ -h "$PRG" ] ; do
+    PRG=$(readlink "$PRG")
+done
+PRGDIR=$(dirname "$PRG")
+
+# Determine MAX_FD
+MAX_FD="maximum"
+case $MAX_FD in
+    max*) MAX_FD="maximum" ;;
+esac
+
+# OS-specific support
+cygwin=false; darwin=false; msys=false; nonstop=false
+case "$(uname)" in
+    CYGWIN* ) cygwin=true ;;
+    Darwin* ) darwin=true ;;
+    MSYS* | MINGW* ) msys=true ;;
+    NONSTOP* ) nonstop=true ;;
+esac
+
+CLASSPATH=$PRGDIR/gradle/wrapper/gradle-wrapper.jar
+
+# Locate the suitable Java installation
+if [ -n "$JAVA_HOME" ] ; then
+    JAVACMD="$JAVA_HOME/bin/java"
+else
+    JAVACMD=java
+fi
+
+exec "$JAVACMD" \
+    -classpath "$CLASSPATH" \
+    org.gradle.wrapper.GradleWrapperMain "$@"
