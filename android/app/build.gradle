@@ -3,8 +3,8 @@ apply plugin: "com.facebook.react"
 apply plugin: "org.jetbrains.kotlin.android"
 
 react {
-    /* JavaScript entry file */
     entryFile = file("../../index.js")
+    hermesEnabled = true
 }
 
 android {
@@ -44,30 +44,26 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            // Fall back to debug signing if release keystore not configured
             signingConfig project.hasProperty("FIELDGUARD_UPLOAD_STORE_FILE")
                 ? signingConfigs.release
                 : signingConfigs.debug
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            // DISABLED R8/ProGuard — native modules get stripped via reflection
+            minifyEnabled false
+            shrinkResources false
         }
     }
 }
 
 dependencies {
-    // React Native
     implementation("com.facebook.react:react-android")
     implementation("com.facebook.react:hermes-android")
-
-    // AndroidX
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.core:core-ktx:1.12.0"
 }
 
-apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
+// Vector icons font copy
+apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
 
-def nativeModulesScript = file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
-if (nativeModulesScript.exists()) {
-    apply from: nativeModulesScript
-    applyNativeModulesAppBuildGradle(project)
-}
+// React Native native modules (autolink) — apply ONCE only
+apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
+applyNativeModulesAppBuildGradle(project)
