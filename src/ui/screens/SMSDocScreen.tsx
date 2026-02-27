@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from '../components/Icon';
-import { DOCUMENTATION_ENTRIES } from '../../ss7/DocumentationCatalogue';
+import { DOCUMENTATION_ENTRIES, getGroups } from '../../ss7/DocumentationCatalogue';
 
-const GROUPS = ['Core SMS', 'PID/Special', 'DCS Classes', 'UDH & Ports', 'SIM OTA/STK', 'WAP/OMA'] as const;
+const ALL_GROUPS = getGroups();
 
 export default function SMSDocScreen() {
-  const [activeGroup, setActiveGroup] = useState<(typeof GROUPS)[number]>('Core SMS');
+  const [activeGroup, setActiveGroup] = useState(ALL_GROUPS[0] ?? 'Core SMS');
   const entries = useMemo(
     () => DOCUMENTATION_ENTRIES.filter((entry) => entry.group === activeGroup),
     [activeGroup],
@@ -30,7 +30,7 @@ export default function SMSDocScreen() {
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.groupScroll}>
-        {GROUPS.map((group) => {
+        {ALL_GROUPS.map((group) => {
           const active = group === activeGroup;
           return (
             <TouchableOpacity

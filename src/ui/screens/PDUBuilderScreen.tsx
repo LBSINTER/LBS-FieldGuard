@@ -129,7 +129,7 @@ export default function PDUBuilderScreen() {
       setBuiltPdu(pdu);
       setDecodedText(
         `PID=0x${hexPad(decoded.pid)} | DCS=0x${hexPad(decoded.dcs)} | ` +
-        `Encoding=${decoded.dcsEncoding} | UD=${decoded.ud?.length ?? 0} bytes`,
+        `Encoding=${decoded.dcsEncoding} | UDL=${decoded.udLen}`,
       );
 
       addPDURecord({
