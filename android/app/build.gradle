@@ -5,8 +5,6 @@ apply plugin: "org.jetbrains.kotlin.android"
 react {
     /* JavaScript entry file */
     entryFile = file("../../index.js")
-    /* Hermes JS engine */
-    enableHermes = true
 }
 
 android {
