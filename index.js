@@ -5,10 +5,15 @@
 
 // gesture-handler MUST be imported before any navigation code
 import 'react-native-gesture-handler';
+import { Buffer } from 'buffer';
 
 import { AppRegistry, LogBox } from 'react-native';
 import App from './src/App';
 import { name as appName } from './app.json';
+
+if (!global.Buffer) {
+  global.Buffer = Buffer;
+}
 
 // Suppress non-fatal warnings that can mask real issues in release
 LogBox.ignoreLogs([

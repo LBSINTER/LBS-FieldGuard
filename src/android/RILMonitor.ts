@@ -29,7 +29,7 @@ const RIL_BRIDGE = NativeModules.RILBridge as
     }
   | undefined;
 
-const EMITTER = RIL_BRIDGE ? new NativeEventEmitter(NativeModules.RILBridge) : null;
+let _emitter: NativeEventEmitter | null = null;
 
 let _running = false;
 
@@ -38,11 +38,22 @@ export function startRILMonitor() {
   if (_running) return;
   _running = true;
 
-  if (RIL_BRIDGE && EMITTER) {
-    // Native path — RILBridge NativeModule (requires root or READ_PHONE_STATE)
-    RIL_BRIDGE.startMonitor().catch(() => _startLogcatFallback());
-    EMITTER.addListener('onRILMessage', _handleRILMessage);
-  } else {
+  if (RIL_BRIDGE) {
+    try {
+      if (!_emitter) {
+        _emitter = new NativeEventEmitter(NativeModules.RILBridge);
+      }
+      RIL_BRIDGE.startMonitor().catch(() => _startLogcatFallback());
+      _emitter.addListener('onRILMessage', _handleRILMessage);
+      return;
+    } catch (error) {
+      console.error('[FieldGuard] RIL native bridge init failed:', error);
+    }
+  }
+
+  if (!_running) return;
+
+  {
     _startLogcatFallback();
   }
 }
@@ -51,7 +62,7 @@ export function stopRILMonitor() {
   if (!_running) return;
   _running = false;
   RIL_BRIDGE?.stopMonitor();
-  EMITTER?.removeAllListeners('onRILMessage');
+  _emitter?.removeAllListeners('onRILMessage');
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────

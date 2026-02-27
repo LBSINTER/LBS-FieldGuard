@@ -16,6 +16,7 @@
  */
 
 import { ByteSignature } from '../types';
+import { Buffer } from 'buffer';
 // Bundled signature DB
 import BUNDLED_DB from '../../assets/signatures/db.json';
 

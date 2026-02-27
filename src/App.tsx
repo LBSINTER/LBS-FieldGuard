@@ -51,23 +51,41 @@ export default function App() {
   const { setProbeConnected, setSignaturesLoaded } = useAppStore();
 
   useEffect(() => {
-    // Async init — non-blocking
+    let mounted = true;
+
+    // Async init — non-blocking and crash-safe
     (async () => {
-      // Load byte-pattern signatures from bundled asset
-      const count = await loadSignatures();
-      setSignaturesLoaded(count);
-
-      // Connect to the LBS station probe relay
-      const connected = await initProbe();
-      setProbeConnected(connected);
-
-      // Platform-specific monitors
-      if (Platform.OS === 'android') {
-        startRILMonitor();
-      } else if (Platform.OS === 'windows') {
-        startPacketCapture();
+      try {
+        const count = await loadSignatures();
+        if (mounted) setSignaturesLoaded(count);
+      } catch (error) {
+        console.error('[FieldGuard] loadSignatures failed:', error);
       }
-    })();
+
+      try {
+        const connected = await initProbe();
+        if (mounted) setProbeConnected(connected);
+      } catch (error) {
+        console.error('[FieldGuard] initProbe failed:', error);
+        if (mounted) setProbeConnected(false);
+      }
+
+      try {
+        if (Platform.OS === 'android') {
+          startRILMonitor();
+        } else if (Platform.OS === 'windows') {
+          startPacketCapture();
+        }
+      } catch (error) {
+        console.error('[FieldGuard] platform monitor init failed:', error);
+      }
+    })().catch((error) => {
+      console.error('[FieldGuard] app init fatal:', error);
+    });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return (

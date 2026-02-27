@@ -20,6 +20,7 @@
 
 import TcpSocket from 'react-native-tcp-socket';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Buffer } from 'buffer';
 import { useAppStore } from '../store/appStore';
 import { ProbeMessage } from '../types';
 import { nanoid } from '../utils/id';

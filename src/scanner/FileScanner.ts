@@ -12,6 +12,7 @@
  */
 
 import RNFS from 'react-native-fs';
+import { Buffer } from 'buffer';
 import { createHash } from '../utils/crypto';
 import { matchSignatures } from './SignatureDB';
 import { ScanResult, SignatureMatch } from '../types';
