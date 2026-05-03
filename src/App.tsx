@@ -5,8 +5,8 @@
  * Platform-aware: Android gets RIL monitor and packet capture; other platforms are limited.
  */
 
-import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
-import { PermissionsAndroid, Platform, StatusBar, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, Component, ErrorInfo, ReactNode } from 'react';
+import { AppState, AppStateStatus, PermissionsAndroid, Platform, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -19,6 +19,7 @@ import { loadSignatures } from './scanner/SignatureDB';
 import { startRILMonitor } from './android/RILMonitor';
 import { startPacketCapture } from './network/PacketAnalyser';
 import UpdateBanner from './ui/components/UpdateBanner';
+import { checkAndCacheUpdate } from './utils/UpdateChecker';
 import { THEME } from './ui/theme';
 
 // Must be called before any navigation rendering
@@ -49,6 +50,17 @@ class ErrorBoundary extends Component<{ children: ReactNode }, EBState> {
 
 export default function App() {
   const { setProbeConnected, setSignaturesLoaded, onboardingDone, loadSettingsFromStorage } = useAppStore();
+  const appState = useRef<AppStateStatus>(AppState.currentState);
+  // Re-run update check whenever app comes to foreground (cache TTL guards network rate)
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && next === 'active') {
+        checkAndCacheUpdate().catch(() => {});
+      }
+      appState.current = next;
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     let mounted = true;

@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 
 import androidx.core.app.NotificationCompat;
@@ -22,8 +23,10 @@ import com.lbs.fieldguard.R;
 
 public class FieldGuardNotifyModule extends ReactContextBaseJavaModule {
     private static final String CHANNEL_MONITOR = "fieldguard.monitor";
-    private static final String CHANNEL_ALERTS = "fieldguard.alerts";
-    private static final int ID_MONITOR = 41101;
+    private static final String CHANNEL_ALERTS  = "fieldguard.alerts";
+    private static final String CHANNEL_UPDATES = "fieldguard.updates";
+    private static final int ID_MONITOR    = 41101;
+    private static final int ID_UPDATE     = 41099;
     private static final int ID_ALERT_BASE = 41200;
 
     private final ReactApplicationContext ctx;
@@ -74,6 +77,40 @@ public class FieldGuardNotifyModule extends ReactContextBaseJavaModule {
             promise.resolve(true);
         } catch (Exception e) {
             promise.reject("ERR_NOTIFY_STOP", e.getMessage());
+        }
+    }
+
+    /**
+     * Fire a one-time "update available" notification.
+     * Tapping it opens downloadUrl directly in the device browser.
+     */
+    @ReactMethod
+    public void notifyUpdate(String version, String downloadUrl, Promise promise) {
+        try {
+            ensureChannels();
+
+            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl));
+            browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) piFlags |= PendingIntent.FLAG_IMMUTABLE;
+            PendingIntent pi = PendingIntent.getActivity(ctx, ID_UPDATE, browserIntent, piFlags);
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, CHANNEL_UPDATES)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("FieldGuard " + version + " available")
+                .setContentText("Tap to open the download page and install the latest update.")
+                .setStyle(new NotificationCompat.BigTextStyle()
+                    .bigText("A new version of LBS FieldGuard (" + version + ") is available. "
+                           + "Tap to open the secure download page and install the update."))
+                .setAutoCancel(true)
+                .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setContentIntent(pi);
+
+            notify(ID_UPDATE, builder.build());
+            promise.resolve(true);
+        } catch (Exception e) {
+            promise.reject("ERR_NOTIFY_UPDATE", e.getMessage());
         }
     }
 
@@ -141,5 +178,14 @@ public class FieldGuardNotifyModule extends ReactContextBaseJavaModule {
         alerts.setDescription("Threat alerts for verified suspicious inbound telecom payloads");
         alerts.setShowBadge(true);
         nm.createNotificationChannel(alerts);
+
+        NotificationChannel updates = new NotificationChannel(
+            CHANNEL_UPDATES,
+            "FieldGuard App Updates",
+            NotificationManager.IMPORTANCE_DEFAULT
+        );
+        updates.setDescription("Notifies when a new signed FieldGuard release is available");
+        updates.setShowBadge(true);
+        nm.createNotificationChannel(updates);
     }
 }
