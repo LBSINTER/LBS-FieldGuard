@@ -3,16 +3,17 @@
  * Light theme matching lbs-int.com.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   ActivityIndicator, Clipboard,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAppStore } from '../../store/appStore';
+import { RELAY_BASE_URL, relayApiUrlToViewerPinUrl } from '../../config/build';
 import { createBridgeSession, endBridgeSession, restoreBridgeSession } from '../../services/BridgeService';
 import { uploadAndConfirmLogs } from '../../services/LogUploader';
-
-const VIEWER_URL = 'https://fieldguard.lbs-int.com/viewer.php';
 
 export default function PCBridgeScreen() {
   const {
@@ -22,14 +23,30 @@ export default function PCBridgeScreen() {
   const [creating, setCreating] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [pinCopied, setPinCopied] = useState(false);
+  const [effectiveRelay, setEffectiveRelay] = useState(RELAY_BASE_URL);
+
+  const refreshRelayFromStorage = useCallback(() => {
+    AsyncStorage.getItem('fg_relay_url')
+      .then((v) => setEffectiveRelay((v && v.trim()) || RELAY_BASE_URL))
+      .catch(() => setEffectiveRelay(RELAY_BASE_URL));
+  }, []);
 
   useEffect(() => {
     restoreBridgeSession().catch(() => {});
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      refreshRelayFromStorage();
+    }, [refreshRelayFromStorage]),
+  );
+
   const handleCreate = async () => {
     setCreating(true);
-    try { await createBridgeSession(); }
+    try {
+      refreshRelayFromStorage();
+      await createBridgeSession();
+    }
     catch (e: any) { useAppStore.getState().setBridgeError(e.message); }
     finally { setCreating(false); }
   };
@@ -67,8 +84,10 @@ export default function PCBridgeScreen() {
   return (
     <ScrollView style={st.container} contentContainerStyle={st.content}>
       <Text style={st.title}>PC Bridge</Text>
-      <Text style={st.subtitle}>View live events on your PC browser by entering the 6-digit PIN.</Text>
-      <Text style={st.viewerUrl}>{VIEWER_URL}</Text>
+      <Text style={st.subtitle}>
+        Open the viewer below in a browser on the same host as your relay API (Settings → PC Bridge relay). It prompts for the 6-digit PIN, then shows live events.
+      </Text>
+      <Text style={st.viewerUrl} selectable>{relayApiUrlToViewerPinUrl(effectiveRelay)}</Text>
 
       {/* Session block */}
       <View style={st.card}>
@@ -93,7 +112,7 @@ export default function PCBridgeScreen() {
               </View>
             </TouchableOpacity>
             <Text style={st.pinHint}>{pinCopied ? 'Copied!' : 'Tap PIN to copy'}</Text>
-            <Text style={st.pinShare}>Enter this PIN at the PC viewer URL above.</Text>
+            <Text style={st.pinShare}>Enter this PIN when the viewer page asks for it.</Text>
             <View style={st.statusRow}>
               <Text style={[st.pcStatus, { color: pcColor }]}>{pcStatus}</Text>
               <Text style={st.expiry}>{expiryText}</Text>

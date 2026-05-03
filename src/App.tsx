@@ -2,7 +2,7 @@
  * LBS FieldGuard — Root App Component
  *
  * Provides navigation shell and global store initialisation.
- * Platform-aware: Android gets RIL monitor; Windows gets packet sniffer.
+ * Platform-aware: Android gets RIL monitor and packet capture; other platforms are limited.
  */
 
 import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';

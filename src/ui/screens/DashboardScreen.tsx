@@ -17,6 +17,7 @@ import {
 import { useAppStore } from '../../store/appStore';
 import { useScreenSize } from '../hooks/useScreenSize';
 import Icon from '../components/Icon';
+import { RILMonitorEventsSection } from '../components/RILMonitorEventsSection';
 import { THEME } from '../theme';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -31,7 +32,7 @@ type ScaleFn = (n: number) => number;
 export default function DashboardScreen() {
   const {
     probeStatus, probeLatencyMs, signaturesLoaded, alerts, rilEvents,
-    monitoringMode, monitoringDetail,
+    monitoringMode, monitoringDetail, clearRilEvents,
   } = useAppStore();
 
   const { scale, fontSize, isTablet, isDesktop, maxContentWidth } = useScreenSize();
@@ -118,6 +119,12 @@ export default function DashboardScreen() {
           <Text style={{ color: THEME.textMuted, fontSize: fontSize(13), marginTop: 2 }}>
             Flagged: {rilEvents.filter((e) => e.flagged).length}
           </Text>
+          <RILMonitorEventsSection
+            rilEvents={rilEvents}
+            scale={scale}
+            fontSize={fontSize}
+            onClear={clearRilEvents}
+          />
         </View>
       )}
 

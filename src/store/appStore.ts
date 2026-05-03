@@ -84,6 +84,7 @@ interface AppState {
   addScanResult: (r: ScanResult) => void;
   clearScanResults: () => void;
   addRILEvent: (e: RILEvent) => void;
+  clearRilEvents: () => void;
   addPDURecord: (r: PDURecord) => void;
   setBridgeSession: (s: BridgeSession | null) => void;
   setBridgeError: (e: string | null) => void;
@@ -140,6 +141,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   addScanResult:    (r) => set((s) => ({ scanResults: [r, ...s.scanResults].slice(0, 200) })),
   clearScanResults: ()  => set({ scanResults: [] }),
   addRILEvent:      (e) => set((s) => ({ rilEvents:   [e, ...s.rilEvents].slice(0, 1000) })),
+  clearRilEvents:   () => set({ rilEvents: [] }),
   addPDURecord:     (r) => set((s) => ({ pduLog:      [r, ...s.pduLog].slice(0, 300) })),
 
   setBridgeSession:     (s) => set({ bridgeSession: s, bridgeError: null }),

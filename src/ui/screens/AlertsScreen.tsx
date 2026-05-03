@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView,
-  Modal, Pressable, Share, Clipboard,
+  Modal, Pressable, Share, Clipboard, Platform,
 } from 'react-native';
 import { useAppStore } from '../../store/appStore';
 import { Alert, Severity } from '../../types';
@@ -138,7 +138,7 @@ function AlertDetailModal({
   };
 
   return (
-    <View style={s.modalInner}>
+    <View style={[s.modalInner, { minHeight: 0 }]}>
       {/* Modal header */}
       <View style={s.modalHeader}>
         <View style={[s.sevBadge, { backgroundColor: SEV_BG[alert.severity], borderColor: color }]}>
@@ -168,7 +168,14 @@ function AlertDetailModal({
       </View>
 
       {/* Tab content */}
-      <ScrollView style={s.modalBody} contentContainerStyle={{ paddingBottom: 20 }}>
+      <ScrollView
+        style={[s.modalBody, { minHeight: 0 }]}
+        contentContainerStyle={{ paddingBottom: 20 }}
+        scrollEnabled
+        nestedScrollEnabled={Platform.OS === 'android'}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator
+      >
         {activeTab === 'explain' && <ExplainTab alert={alert} />}
         {activeTab === 'hex'     && <HexTab     alert={alert} onCopy={handleCopyHex} />}
         {activeTab === 'fields'  && <FieldsTab  alert={alert} />}
@@ -266,7 +273,12 @@ function HexTab({ alert, onCopy }: { alert: Alert; onCopy: () => void }) {
           <Text style={s.copyBtn}>Copy hex</Text>
         </TouchableOpacity>
       </View>
-      <ScrollView horizontal>
+      <ScrollView
+        horizontal
+        scrollEnabled
+        nestedScrollEnabled={Platform.OS === 'android'}
+        showsHorizontalScrollIndicator
+      >
         <View style={s.hexDump}>{rows}</View>
       </ScrollView>
       {hlFrom >= 0 && (

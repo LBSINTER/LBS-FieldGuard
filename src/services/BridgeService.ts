@@ -6,7 +6,7 @@
  *
  * Flow:
  *   1. createSession()  — POST to server → receive PIN + token
- *   2. Show PIN to user → PC operator enters PIN at https://fieldguard.lbs-int.com/viewer.php
+ *   2. Show PIN to user → PC operator opens viewer.html#pin on the same origin as api.php
  *   3. Push events to relay at regular intervals
  *   4. Poll session_status to update pcConnected flag
  *   5. On demand: upload log bundle via LogUploader

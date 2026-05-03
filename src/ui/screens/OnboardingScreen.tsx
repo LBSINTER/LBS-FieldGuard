@@ -4,6 +4,7 @@
  */
 
 import React, { useRef, useState } from 'react';
+import { PC_BRIDGE_VIEWER_URL } from '../../config/build';
 import {
   Animated, Dimensions, FlatList, Pressable, StyleSheet, Switch, Text, View, ViewToken,
 } from 'react-native';
@@ -129,9 +130,16 @@ function StepSession() {
       <Text style={s.stepSubtitle}>View captured packets live on your PC or in any browser.</Text>
 
       <View style={s.howCard}>
-        <HowStep n="1" text='Open the PC Bridge tab \u2192 tap "Create Session". A 6-digit PIN is generated.' />
-        <HowStep n="2" text="On your PC or phone browser, go to fieldguard.connectednet.com" />
-        <HowStep n="3" text="Enter the PIN. All traffic is end-to-end encrypted with your PGP keys." />
+        <HowStep n="1" text='Open the PC Bridge tab \u2192 tap "Create Session". A 6-digit PIN is generated on the phone.' />
+        <HowStep
+          n="2"
+          text={
+            'On your PC or phone browser, open our viewer (same host as the relay): ' +
+            PC_BRIDGE_VIEWER_URL +
+            '. The page will ask for the PIN before joining the session.'
+          }
+        />
+        <HowStep n="3" text="Enter the 6-digit PIN from the app when prompted. Payloads are end-to-end encrypted with your PGP keys." />
         <HowStep n="4" text='To share a session publicly, tap "Share URL". Anyone with the link can view.' />
       </View>
 
@@ -139,8 +147,8 @@ function StepSession() {
         <Text style={s.privacyTitle}>How pairing works</Text>
         <Text style={s.privacyText}>
           Sessions are E2E encrypted using PGP (openpgp.js on the browser side, react-native-openpgp
-          on device). The relay server at fieldguard.connectednet.com forwards AES-256-GCM encrypted
-          packets and never sees plaintext content. Sessions expire after 7 days.
+          on device). The relay at fieldguard.lbs-int.com forwards AES-256-GCM ciphertext only; pairing
+          happens in the browser after you enter the PIN on the viewer page. Sessions expire after 7 days.
         </Text>
       </View>
 

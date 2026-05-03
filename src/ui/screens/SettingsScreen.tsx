@@ -6,12 +6,12 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, Switch, StyleSheet, ScrollView, TouchableOpacity,
+  View, Text, TextInput, Switch, StyleSheet, ScrollView, TouchableOpacity, Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from '../components/Icon';
 import { useScreenSize } from '../hooks/useScreenSize';
-import { APP_VERSION, PROBE_HOST, PROBE_PORT, RELAY_BASE_URL } from '../../config/build';
+import { APP_VERSION, PROBE_HOST, PROBE_PORT, RELAY_BASE_URL, relayApiUrlToViewerPinUrl } from '../../config/build';
 
 const KEYS = {
   STATION_HOST: 'fg_station_host',
@@ -112,6 +112,12 @@ export default function SettingsScreen() {
         value={relay} onChangeText={setRelay}
         placeholderTextColor="#94a3b8" autoCapitalize="none" autoCorrect={false}
       />
+      <Text style={[styles.label, { fontSize: fontSize(11), marginTop: 6 }]}>
+        PIN viewer (open in browser; must match this relay host):
+      </Text>
+      <Text style={[styles.viewerHint, { fontSize: fontSize(11) }]} selectable>
+        {relayApiUrlToViewerPinUrl(relay)}
+      </Text>
 
       <Text style={[styles.section, { fontSize: fontSize(13) }]}>Detection</Text>
       <View style={styles.row}>
@@ -188,6 +194,7 @@ const styles = StyleSheet.create({
   section:     { fontSize: 13, fontWeight: '600', color: '#2563eb', marginTop: 20, marginBottom: 8 },
   label:       { fontSize: 13, color: '#64748b', marginTop: 8, marginBottom: 4 },
   input:       { backgroundColor: '#ffffff', borderRadius: 6, borderWidth: 1, borderColor: '#e2e8f0', color: '#0f172a', paddingHorizontal: 12, paddingVertical: 8 },
+  viewerHint:  { color: '#2563eb', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
   row:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
   toggleLabel: { color: '#0f172a', fontSize: 14, flex: 1, marginRight: 12 },
   saveBtn:     { flexDirection: 'row', backgroundColor: '#2563eb', borderRadius: 6, padding: 12, alignItems: 'center', justifyContent: 'center', marginTop: 24 },

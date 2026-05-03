@@ -15,6 +15,7 @@ import ProbeScreen from './screens/ProbeScreen';
 import PCBridgeScreen from './screens/PCBridgeScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import SMSDocScreen from './screens/SMSDocScreen';
+import CommsRootScreen from './screens/CommsRootScreen';
 import Icon from './components/Icon';
 
 const Tab = createBottomTabNavigator();
@@ -68,6 +69,7 @@ export default function RootNavigator() {
             AlertsTab:   'alert-circle',
             ProbeTab:    'antenna',
             BridgeTab:   'laptop',
+            CommsTab:    'shield-lock',
             SettingsTab: 'cog',
             SMSDocTab:   'book-open-variant',
           };
@@ -79,10 +81,11 @@ export default function RootNavigator() {
       <Tab.Screen name="ScanTab"     component={ScanStack}     options={{ title: 'Scanner' }} />
       <Tab.Screen name="PDUTab"      component={PDUStack}      options={{ title: 'PDU Builder' }} />
       <Tab.Screen name="AlertsTab"   component={AlertStack}    options={{ title: 'Alerts' }} />
-      <Tab.Screen name="ProbeTab"    component={ProbeScreen}   options={{ title: 'Probe' }} />
-      <Tab.Screen name="BridgeTab"   component={PCBridgeScreen} options={{ title: 'PC Bridge' }} />
-      <Tab.Screen name="SMSDocTab"   component={SMSDocScreen}  options={{ title: 'Documentation' }} />
-      <Tab.Screen name="SettingsTab" component={SettingsScreen} options={{ title: 'Settings' }} />
+      <Tab.Screen name="ProbeTab"    component={ProbeScreen}      options={{ title: 'Probe' }} />
+      <Tab.Screen name="BridgeTab"   component={PCBridgeScreen}   options={{ title: 'PC Bridge' }} />
+      <Tab.Screen name="CommsTab"    component={CommsRootScreen}  options={{ title: 'Comms' }} />
+      <Tab.Screen name="SMSDocTab"   component={SMSDocScreen}     options={{ title: 'Documentation' }} />
+      <Tab.Screen name="SettingsTab" component={SettingsScreen}   options={{ title: 'Settings' }} />
     </Tab.Navigator>
   );
 }

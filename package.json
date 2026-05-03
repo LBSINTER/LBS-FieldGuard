@@ -23,6 +23,7 @@
     "axios": "^1.6.7",
     "buffer": "^6.0.3",
     "events": "^3.3.0",
+    "openpgp": "^5.11.2",
     "react": "18.2.0",
     "react-native": "0.73.4",
     "react-native-chart-kit": "^6.12.0",
@@ -35,6 +36,7 @@
     "react-native-tcp-socket": "^6.0.6",
     "react-native-vector-icons": "^10.0.3",
     "react-native-windows": "0.73.4",
+    "stream-browserify": "^3.0.0",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
